@@ -1,0 +1,6 @@
+int x;
+
+void main(void) {
+    x = 10 @ 2;
+    output(x);
+}

@@ -1,0 +1,4 @@
+void main(void) {
+    x = 10;      /* x nunca foi declarado */
+    output(x);
+}
