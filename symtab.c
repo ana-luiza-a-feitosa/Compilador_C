@@ -4,22 +4,7 @@
 #define SHIFT 4
 #define MAX_SCOPE 100
 
-typedef struct LineListRec {
-    int lineno;
-    struct LineListRec *next;
-} *LineList;
-
-typedef struct BucketListRec {
-    char *name;
-    LineList lines;
-    int memloc;
-    ExpType type;
-    int arraySize;
-    char *scope;
-    struct BucketListRec *next;
-} *BucketList;
-
-static BucketList hashTable[SIZE];
+static struct BucketListRec *hashTable[SIZE];
 static char *currentScope = "global";
 static char scopeStack[MAX_SCOPE][50];
 static int scopeStackTop = 0;
