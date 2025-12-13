@@ -5,7 +5,8 @@
 
 typedef enum {
     TYPE_INT,
-    TYPE_VOID
+    TYPE_VOID,
+    TYPE_CHAR      /* <-- NOVO tipo */
 } TypeKind;
 
 typedef struct Symbol {

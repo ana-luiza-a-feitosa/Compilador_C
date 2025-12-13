@@ -1,0 +1,13 @@
+#include "../runtime/runtime.h"
+
+int x;
+int y;
+void main(void)
+{
+  int v;
+  x = 10;
+  y = 12;
+  v = (x + y);
+  output(v);
+}
+

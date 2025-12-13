@@ -6,8 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 
-/* Linha atual do fonte e flag global de erro */
-extern int lineno;
 extern int Error;
+extern FILE *source;
 
-#endif /* GLOBALS_H */
+#endif

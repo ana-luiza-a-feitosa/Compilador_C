@@ -1,183 +1,208 @@
 #include "scanner.h"
+#include "globals.h"
 
-static FILE *source = NULL;
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
 
-typedef struct {
-    const char *lex;
-    TokenType  type;
-} Keyword;
+/* O Error deve existir em algum lugar (globals.c por ex). */
+extern int Error;
 
-static Keyword keywords[] = {
-    { "if",     TK_IF },
-    { "else",   TK_ELSE },
-    { "while",  TK_WHILE },
-    { "return", TK_RETURN },
-    { "int",    TK_INT },
-    { "void",   TK_VOID },
-    { "input",  TK_INPUT },
-    { "output", TK_OUTPUT },
-    { NULL,     TK_ID } /* sentinela */
-};
+/* ========= Fonte ========= */
 
-void abrirFonte(const char *nomeArquivo) {
-    source = fopen(nomeArquivo, "r");
-    if (!source) {
-        fprintf(stderr, "Nao foi possivel abrir o arquivo %s\n", nomeArquivo);
-        exit(EXIT_FAILURE);
-    }
-    lineno = 1;
+int openSource(const char *filename) {
+    source = fopen(filename, "r");
+    return source != NULL;
 }
 
-/* devolve o último char lido para o fluxo */
-static void ungetch(int c) {
-    if (c != EOF) {
-        ungetc(c, source);
+void closeSource(void) {
+    if (source) {
+        fclose(source);
+        source = NULL;
     }
 }
 
-int getLinhaAtual(void) {
-    return lineno;
+/* ========= Controle de linha ========= */
+static int lineno = 1;
+
+static int nextChar(void) {
+    if (!source) return EOF;
+    return fgetc(source);
 }
 
-static TokenType palavraChaveOuID(char *lex) {
-    for (int i = 0; keywords[i].lex != NULL; i++) {
-        if (strcmp(lex, keywords[i].lex) == 0) {
-            return keywords[i].type;
-        }
-    }
+static void ungetChar(int c) {
+    if (c != EOF && source) ungetc(c, source);
+}
+
+static int isLetterOnly(int c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+static TokenType reservedLookup(const char *s) {
+    if (strcmp(s, "else") == 0)   return TK_ELSE;
+    if (strcmp(s, "if") == 0)     return TK_IF;
+    if (strcmp(s, "int") == 0)    return TK_INT;
+    if (strcmp(s, "return") == 0) return TK_RETURN;
+    if (strcmp(s, "void") == 0)   return TK_VOID;
+    if (strcmp(s, "while") == 0)  return TK_WHILE;
+
+    /* input/output NÃO são palavras-chave no Louden: são IDs predefinidos */
     return TK_ID;
+}
+
+static void lexError(const char *lex, int line) {
+    printf("ERRO LEXICO: \"%s\" - LINHA: %d\n", lex, line);
+    Error = 1;
 }
 
 Token getToken(void) {
     Token tk;
     tk.lexema[0] = '\0';
     tk.linha = lineno;
-    tk.type  = TK_EOF;
-
-    if (!source) {
-        fprintf(stderr, "Fonte nao aberta em abrirFonte().\n");
-        exit(EXIT_FAILURE);
-    }
+    tk.type = TK_ERROR;
 
     int c;
 
-    /* ignora espaços e quebras de linha */
-    while ((c = fgetc(source)) != EOF) {
-        if (c == ' ' || c == '\t' || c == '\r') {
-            continue;
-        } else if (c == '\n') {
-            lineno++;
-        } else {
-            break;
-        }
+    /* ========= 1) pula espaços em branco ========= */
+    while (1) {
+        c = nextChar();
+        if (c == ' ' || c == '\t' || c == '\r') continue;
+        if (c == '\n') { lineno++; continue; }
+        break;
     }
 
     tk.linha = lineno;
 
+    /* ========= 2) EOF ========= */
     if (c == EOF) {
         tk.type = TK_EOF;
         strcpy(tk.lexema, "EOF");
         return tk;
     }
 
-    /* identificadores ou palavras-chave */
-    if (isalpha(c) || c == '_') {
-        int i = 0;
-        tk.lexema[i++] = (char)c;
-        while ((c = fgetc(source)) != EOF &&
-               (isalnum(c) || c == '_')) {
-            if (i < (int)sizeof(tk.lexema) - 1) {
-                tk.lexema[i++] = (char)c;
+    /* ========= 3) comentários do tipo C: /* ... *\/  ========= */
+    if (c == '/') {
+        int d = nextChar();
+        if (d == '*') {
+            int prev = 0;
+            while (1) {
+                int x = nextChar();
+                if (x == EOF) {
+                    lexError("comentario nao fechado", lineno);
+                    tk.type = TK_ERROR;
+                    strcpy(tk.lexema, "/*");
+                    return tk;
+                }
+                if (x == '\n') lineno++;
+
+                if (prev == '*' && x == '/') break;
+                prev = x;
+            }
+            /* depois do comentário, pega o próximo token */
+            return getToken();
+        } else {
+            /* '/' sozinho é operador de divisão */
+            ungetChar(d);
+            tk.type = TK_OVER;
+            strcpy(tk.lexema, "/");
+            return tk;
+        }
+    }
+
+    /* ========= 4) ID = letra letra* (Louden puro) ========= */
+    if (isLetterOnly(c)) {
+        int k = 0;
+        tk.lexema[k++] = (char)c;
+
+        while (1) {
+            int d = nextChar();
+            if (isLetterOnly(d)) {
+                if (k < (int)sizeof(tk.lexema) - 1)
+                    tk.lexema[k++] = (char)d;
+            } else {
+                ungetChar(d);
+                break;
             }
         }
-        tk.lexema[i] = '\0';
-        ungetch(c);
 
-        tk.type = palavraChaveOuID(tk.lexema);
+        tk.lexema[k] = '\0';
+        tk.type = reservedLookup(tk.lexema);
         return tk;
     }
 
-    /* números inteiros */
-    if (isdigit(c)) {
-        int i = 0;
-        tk.lexema[i++] = (char)c;
-        while ((c = fgetc(source)) != EOF && isdigit(c)) {
-            if (i < (int)sizeof(tk.lexema) - 1) {
-                tk.lexema[i++] = (char)c;
+    /* ========= 5) NUM = dígito dígito* ========= */
+    if (isdigit((unsigned char)c)) {
+        int k = 0;
+        tk.lexema[k++] = (char)c;
+
+        while (1) {
+            int d = nextChar();
+            if (isdigit((unsigned char)d)) {
+                if (k < (int)sizeof(tk.lexema) - 1)
+                    tk.lexema[k++] = (char)d;
+            } else {
+                ungetChar(d);
+                break;
             }
         }
-        tk.lexema[i] = '\0';
-        ungetch(c);
 
+        tk.lexema[k] = '\0';
         tk.type = TK_NUM;
         return tk;
     }
 
-    /* operadores e símbolos simples / compostos */
+    /* ========= 6) operadores e delimitadores ========= */
     switch (c) {
-    case '+':
-        tk.type = TK_PLUS;  strcpy(tk.lexema, "+");  break;
-    case '-':
-        tk.type = TK_MINUS; strcpy(tk.lexema, "-");  break;
-    case '*':
-        tk.type = TK_TIMES; strcpy(tk.lexema, "*");  break;
-    case '/': {
-        int next = fgetc(source);
-        if (next == '/') { /* comentário de linha */
-            while ((c = fgetc(source)) != EOF && c != '\n') {}
-            if (c == '\n') lineno++;
-            return getToken();
-        } else if (next == '*') { /* comentário de bloco */
-            int prev = 0;
-            while ((c = fgetc(source)) != EOF) {
-                if (c == '\n') lineno++;
-                if (prev == '*' && c == '/') break;
-                prev = c;
-            }
-            return getToken();
-        } else {
-            ungetch(next);
-            tk.type = TK_OVER;
-            strcpy(tk.lexema, "/");
-        }
-        break;
-    }
-    case '<':
-        tk.type = TK_LT;    strcpy(tk.lexema, "<");  break;
-    case '>':
-        tk.type = TK_GT;    strcpy(tk.lexema, ">");  break;
-    case '=': {
-        int next = fgetc(source);
-        if (next == '=') {
-            tk.type = TK_EQ;
-            strcpy(tk.lexema, "==");
-        } else {
-            ungetch(next);
-            tk.type = TK_ASSIGN;
-            strcpy(tk.lexema, "=");
-        }
-        break;
-    }
-    case '(':
-        tk.type = TK_LPAREN;  strcpy(tk.lexema, "(");  break;
-    case ')':
-        tk.type = TK_RPAREN;  strcpy(tk.lexema, ")");  break;
-    case '{':
-        tk.type = TK_LBRACE;  strcpy(tk.lexema, "{");  break;
-    case '}':
-        tk.type = TK_RBRACE;  strcpy(tk.lexema, "}");  break;
-    case ';':
-        tk.type = TK_SEMI;    strcpy(tk.lexema, ";");  break;
-    case ',':
-        tk.type = TK_COMMA;   strcpy(tk.lexema, ",");  break;
-    default:
-        tk.type = TK_ERROR;
-        tk.lexema[0] = (char)c;
-        tk.lexema[1] = '\0';
-        printf("ERRO LEXICO: \"%s\" - LINHA: %d\n", tk.lexema, tk.linha);
-        Error = 1;
-        break;
-    }
+        case '+': tk.type = TK_PLUS; strcpy(tk.lexema, "+"); return tk;
+        case '-': tk.type = TK_MINUS; strcpy(tk.lexema, "-"); return tk;
+        case '*': tk.type = TK_TIMES; strcpy(tk.lexema, "*"); return tk;
+        case ';': tk.type = TK_SEMI; strcpy(tk.lexema, ";"); return tk;
+        case ',': tk.type = TK_COMMA; strcpy(tk.lexema, ","); return tk;
+        case '(': tk.type = TK_LPAREN; strcpy(tk.lexema, "("); return tk;
+        case ')': tk.type = TK_RPAREN; strcpy(tk.lexema, ")"); return tk;
+        case '[': tk.type = TK_LBRACKET; strcpy(tk.lexema, "["); return tk;
+        case ']': tk.type = TK_RBRACKET; strcpy(tk.lexema, "]"); return tk;
+        case '{': tk.type = TK_LBRACE; strcpy(tk.lexema, "{"); return tk;
+        case '}': tk.type = TK_RBRACE; strcpy(tk.lexema, "}"); return tk;
 
-    return tk;
+        case '=': {
+            int d = nextChar();
+            if (d == '=') { tk.type = TK_EQ; strcpy(tk.lexema, "=="); }
+            else { ungetChar(d); tk.type = TK_ASSIGN; strcpy(tk.lexema, "="); }
+            return tk;
+        }
+
+        case '!': {
+            int d = nextChar();
+            if (d == '=') { tk.type = TK_NE; strcpy(tk.lexema, "!="); return tk; }
+            /* '!' sozinho NÃO existe no C- do Louden */
+            ungetChar(d);
+            tk.type = TK_ERROR;
+            strcpy(tk.lexema, "!");
+            lexError(tk.lexema, lineno);
+            return tk;
+        }
+
+        case '<': {
+            int d = nextChar();
+            if (d == '=') { tk.type = TK_LE; strcpy(tk.lexema, "<="); }
+            else { ungetChar(d); tk.type = TK_LT; strcpy(tk.lexema, "<"); }
+            return tk;
+        }
+
+        case '>': {
+            int d = nextChar();
+            if (d == '=') { tk.type = TK_GE; strcpy(tk.lexema, ">="); }
+            else { ungetChar(d); tk.type = TK_GT; strcpy(tk.lexema, ">"); }
+            return tk;
+        }
+
+        default:
+            tk.type = TK_ERROR;
+            tk.lexema[0] = (char)c;
+            tk.lexema[1] = '\0';
+            lexError(tk.lexema, lineno);
+            return tk;
+    }
 }

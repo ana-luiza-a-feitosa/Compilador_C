@@ -1,6 +1,12 @@
 int x;
+int y;
 
 void main(void) {
+    int v;
+
     x = 10;
-    output(x);
+    y = 12; 
+    v = x + y;
+
+    output(v);
 }

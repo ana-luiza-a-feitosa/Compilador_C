@@ -1,11 +1,2 @@
-int f(int n) {
-    int r;
-    r = n + 1;
-    return r;
-}
-
-void main(void) {
-    int a;
-    a = input();
-    output(f(a));
-}
+x = 10;
+y = x + 2;

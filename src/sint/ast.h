@@ -1,31 +1,44 @@
 #ifndef AST_H
 #define AST_H
 
-#include "globals.h"
-#include "scanner.h"
+#include <stdio.h>
 
-/* Tipos de nós */
 typedef enum {
     ND_STMT,
     ND_EXPR,
-    ND_DECL,
-    ND_FUNC
+    ND_DECL
 } NodeKind;
 
 typedef enum {
+    ST_COMPOUND,
     ST_IF,
     ST_WHILE,
     ST_RETURN,
-    ST_COMPOUND,
-    ST_ASSIGN
+    ST_EXPR
 } StmtKind;
 
 typedef enum {
     EX_OP,
     EX_CONST,
     EX_ID,
-    EX_CALL
+    EX_CALL,
+    EX_ASSIGN,
+    EX_INDEX
 } ExprKind;
+
+typedef enum {
+    DECL_VAR,
+    DECL_FUN,
+    DECL_PARAM
+} DeclKind;
+
+typedef enum {
+    TY_INT,
+    TY_VOID
+} TypeSpec;
+
+/* TokenType vem do scanner.h */
+#include "scanner.h"
 
 typedef struct treeNode {
     struct treeNode *child[3];
@@ -33,20 +46,24 @@ typedef struct treeNode {
 
     int lineno;
     NodeKind nodekind;
-    union { StmtKind stmt; ExprKind expr; } kind;
 
-    /* infos extras */
-    TokenType op;  /* para EX_OP */
-    int       val; /* para EX_CONST */
-    char     *name;/* para IDs e funções */
+    union {
+        StmtKind stmt;
+        ExprKind expr;
+        DeclKind decl;
+    } kind;
+
+    /* atributos comuns */
+    TokenType op;     /* EX_OP */
+    int val;          /* EX_CONST */
+    char *name;       /* ID / CALL / DECL */
+    TypeSpec type;    /* DECL_* */
+    int arraySize;    /* DECL_VAR (>=0 se array), DECL_PARAM (0 se array param), senão -1 */
 } TreeNode;
 
-/* Funções utilitárias de criação */
+/* construtores */
 TreeNode *newStmtNode(StmtKind kind);
 TreeNode *newExprNode(ExprKind kind);
-TreeNode *newDeclNode(void);
+TreeNode *newDeclNode(DeclKind kind);
 
-/* Impressão simples da AST (texto) */
-void printAST(TreeNode *t, int indent);
-
-#endif /* AST_H */
+#endif
