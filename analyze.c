@@ -1,12 +1,5 @@
 #include "globals.h"
 
-void st_insert(char *, int, int, ExpType, int);
-BucketList st_lookup(char *);
-BucketList st_lookup_current(char *);
-void st_push_scope(char *);
-void st_pop_scope(void);
-void st_set_scope(char *);
-
 static int location = 0;
 static char *currentFunctionName = NULL;
 
@@ -114,7 +107,7 @@ static void afterNode(TreeNode *t) {
 }
 
 static void checkNode(TreeNode *t) {
-    char msg[100];
+    BucketList l;
     
     switch (t->nodekind) {
     case ExpK:

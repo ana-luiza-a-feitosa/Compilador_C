@@ -6,7 +6,6 @@ TokenType getToken(void);
 static TreeNode *declaration_list(void);
 static TreeNode *declaration(void);
 static TreeNode *var_declaration(void);
-static TreeNode *fun_declaration(void);
 static TreeNode *params(void);
 static TreeNode *param(void);
 static TreeNode *compound_stmt(void);
