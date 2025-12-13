@@ -1,0 +1,147 @@
+/* Exemplo 1: Programa simples com entrada e saída */
+int main(void) {
+    int x;
+    int y;
+    x = input;
+    y = x * 2;
+    output = y;
+    return 0;
+}
+
+/* Exemplo 2: Função fatorial */
+/*
+int factorial(int n) {
+    int result;
+    if (n <= 1)
+        result = 1;
+    else
+        result = n * factorial(n - 1);
+    return result;
+}
+
+int main(void) {
+    int num;
+    num = 5;
+    output = factorial(num);
+    return 0;
+}
+*/
+
+/* Exemplo 3: Arrays */
+/*
+int main(void) {
+    int v[10];
+    int i;
+    int soma;
+    
+    i = 0;
+    soma = 0;
+    
+    while (i < 10) {
+        v[i] = i * 2;
+        soma = soma + v[i];
+        i = i + 1;
+    }
+    
+    output = soma;
+    return 0;
+}
+*/
+
+/* Exemplo 4: Estruturas de controle */
+/*
+int max(int a, int b) {
+    int result;
+    if (a > b)
+        result = a;
+    else
+        result = b;
+    return result;
+}
+
+int main(void) {
+    int x;
+    int y;
+    int maior;
+    
+    x = 10;
+    y = 20;
+    maior = max(x, y);
+    output = maior;
+    return 0;
+}
+*/
+
+/* Exemplo 5: While loop */
+/*
+int main(void) {
+    int i;
+    int sum;
+    
+    i = 1;
+    sum = 0;
+    
+    while (i <= 10) {
+        sum = sum + i;
+        i = i + 1;
+    }
+    
+    output = sum;
+    return 0;
+}
+*/
+
+/* Exemplo 6: Operações aritméticas */
+/*
+int main(void) {
+    int a;
+    int b;
+    int soma;
+    int sub;
+    int mult;
+    int div;
+    
+    a = 20;
+    b = 4;
+    
+    soma = a + b;
+    sub = a - b;
+    mult = a * b;
+    div = a / b;
+    
+    output = soma;
+    output = sub;
+    output = mult;
+    output = div;
+    
+    return 0;
+}
+*/
+
+/* Exemplo 7: Comparações */
+/*
+int main(void) {
+    int x;
+    int y;
+    
+    x = 10;
+    y = 5;
+    
+    if (x > y)
+        output = 1;
+    else
+        output = 0;
+    
+    if (x == y)
+        output = 1;
+    else
+        output = 0;
+    
+    if (x != y)
+        output = 1;
+    else
+        output = 0;
+    
+    return 0;
+}
+*/
