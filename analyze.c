@@ -163,14 +163,17 @@ static void checkNode(TreeNode *t) {
 void buildSymtab(TreeNode *syntaxTree) {
     st_set_scope("global");
     
-    st_insert("input", 0, location++, Function, 0);
-    st_insert("output", 0, location++, Function, 0);
+    st_insert("input", 0, location++, Integer, 0);
+    st_insert("output", 0, location++, Void, 0);
     
     traverse(syntaxTree, insertNode, afterNode);
     
     BucketList mainFunc = st_lookup("main");
     if (mainFunc == NULL) {
         fprintf(listing, "ERRO SEMANTICO: funcao 'main' nao declarada\n");
+        Error = 1;
+    } else if (mainFunc->type != Integer && mainFunc->type != Void) {
+        fprintf(listing, "ERRO SEMANTICO: 'main' deve retornar int ou void\n");
         Error = 1;
     }
 }

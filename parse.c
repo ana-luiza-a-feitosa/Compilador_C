@@ -316,16 +316,19 @@ static TreeNode *expression(void) {
     TreeNode *t = NULL;
     if (token == ID) {
         char *name = strdup(tokenString);
+        int saveLine = lineno;
         match(ID);
         
         if (token == ASSIGN) {
             t = newExpNode(AssignK);
             t->attr.name = name;
+            t->lineno = saveLine;
             match(ASSIGN);
             t->child[0] = expression();
         } else if (token == LBRACKET) {
             TreeNode *arr = newExpNode(ArrIdK);
             arr->attr.name = name;
+            arr->lineno = saveLine;
             match(LBRACKET);
             arr->child[0] = expression();
             match(RBRACKET);
@@ -333,6 +336,7 @@ static TreeNode *expression(void) {
             if (token == ASSIGN) {
                 t = newExpNode(AssignK);
                 t->child[0] = arr;
+                t->lineno = saveLine;
                 match(ASSIGN);
                 t->child[1] = expression();
             } else {
@@ -340,12 +344,23 @@ static TreeNode *expression(void) {
             }
         } else if (token == LPAREN) {
             t = call(name);
+            t->lineno = saveLine;
             t = simple_expression(t);
         } else {
             TreeNode *id = newExpNode(IdK);
             id->attr.name = name;
+            id->lineno = saveLine;
             t = simple_expression(id);
         }
+    } else if (token == INPUT) {
+        TreeNode *inputCall = newStmtNode(CallK);
+        inputCall->attr.name = strdup("input");
+        inputCall->lineno = lineno;
+        match(INPUT);
+        t = simple_expression(inputCall);
+    } else if (token == OUTPUT) {
+        syntaxError("output usado incorretamente em expressao");
+        match(OUTPUT);
     } else {
         t = simple_expression(NULL);
     }
