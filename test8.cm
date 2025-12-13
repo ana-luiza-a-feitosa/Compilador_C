@@ -1,0 +1,18 @@
+/* Exemplo 8: While loop */
+/*
+int main(void) {
+    int i;
+    int sum;
+    
+    i = 1;
+    sum = 0;
+    
+    while (i <= 10) {
+        sum = sum + i;
+        i = i + 1;
+    }
+    
+    output = sum;
+    return 0;
+}
+*/

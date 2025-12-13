@@ -1,0 +1,24 @@
+/* Exemplo 7: Estruturas de controle */
+/*
+int max(int a, int b) {
+    int result;
+    if (a > b)
+        result = a;
+    else
+        result = b;
+    return result;
+}
+
+int main(void) {
+    int x;
+    int y;
+    int maior;
+    
+    x = 10;
+    y = 20;
+    maior = max(x, y);
+    output = maior;
+    return 0;
+}
+*/
+
