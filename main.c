@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
     
     /* FASE 3: Geração de Código Intermediário */
     fprintf(listing, "========================================\n");
-    fprintf(listing, "    CODIGO INTERMEDIARIO (3 ENDERECOS)\n");
+    fprintf(listing, "    CODIGO INTERMEDIARIO\n");
     fprintf(listing, "========================================\n");
     codeGen(syntaxTree);
     fprintf(listing, "\n");

@@ -18,6 +18,9 @@ static int linepos = 0;
 static int bufsize = 0;
 static int EOF_flag = FALSE;
 
+/* Para rastrear comentários não fechados */
+static int commentStartLine = 0;
+
 static struct {
     char *str;
     TokenType tok;
@@ -83,9 +86,10 @@ TokenType getToken(void) {
             else if (c == '/') {
                 save = FALSE;
                 int c2 = getNextChar();
-                if (c2 == '*')
+                if (c2 == '*') {
                     state = INCOMMENT;
-                else {
+                    commentStartLine = lineno; /* Salva linha onde comentário começou */
+                } else {
                     ungetNextChar();
                     state = DONE;
                     currentToken = OVER;
@@ -139,12 +143,27 @@ TokenType getToken(void) {
             
         case INCOMMENT:
             save = FALSE;
-            if (c == '*') {
+            if (c == EOF) {
+                /* ERRO: Comentário não fechado - chegou ao fim do arquivo */
+                state = DONE;
+                currentToken = ENDFILE;
+                fprintf(listing, "\nERRO LEXICO: Comentario nao fechado iniciado na linha %d\n", 
+                        commentStartLine);
+                Error = TRUE;
+            } else if (c == '*') {
                 int c2 = getNextChar();
-                if (c2 == '/')
-                    state = START;
-                else
+                if (c2 == '/') {
+                    state = START; /* Comentário fechado corretamente */
+                } else if (c2 == EOF) {
+                    /* ERRO: EOF dentro de possível fechamento de comentário */
+                    state = DONE;
+                    currentToken = ENDFILE;
+                    fprintf(listing, "\nERRO LEXICO: Comentario nao fechado iniciado na linha %d\n", 
+                            commentStartLine);
+                    Error = TRUE;
+                } else {
                     ungetNextChar();
+                }
             }
             break;
             

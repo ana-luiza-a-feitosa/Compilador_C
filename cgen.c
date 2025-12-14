@@ -1,5 +1,5 @@
 /*
- * Gerador de Código Intermediário (3 Endereços) para C-
+ * Gerador de Código Intermediário (AST Linearizada) para C-
  */
 
 #include "globals.h"
@@ -23,17 +23,26 @@ static char *newLabel(void) {
     return copyString(label);
 }
 
-/* Emite instrução de três endereços */
-static void emitCode(char *op, char *arg1, char *arg2, char *result) {
-    fprintf(listing, "(%s, %s, %s, %s)\n", op, arg1, arg2, result);
+/* Emite label */
+static void emitLabel(char *label) {
+    fprintf(listing, "%s:\n", label);
+}
+
+/* Emite goto */
+static void emitGoto(char *label) {
+    fprintf(listing, "goto %s\n", label);
+}
+
+/* Emite salto condicional */
+static void emitIfFalse(char *cond, char *label) {
+    fprintf(listing, "if_false %s goto %s\n", cond, label);
 }
 
 /* Geração de código para expressões - retorna temporário com resultado */
 static char *cGen(TreeNode *tree) {
-    if (tree == NULL) return "-";
+    if (tree == NULL) return NULL;
     
     char *t1, *t2, *t3;
-    char opStr[10];
     char numStr[20];
     
     switch (tree->nodekind) {
@@ -41,9 +50,7 @@ static char *cGen(TreeNode *tree) {
         switch (tree->kind.exp) {
         case ConstK:
             sprintf(numStr, "%d", tree->attr.val);
-            t1 = newTemp();
-            emitCode("CONST", numStr, "-", t1);
-            return t1;
+            return copyString(numStr);
             
         case IdK:
             return tree->attr.name;
@@ -51,7 +58,7 @@ static char *cGen(TreeNode *tree) {
         case ArrIdK:
             t1 = cGen(tree->child[0]); /* índice */
             t2 = newTemp();
-            emitCode("ARR_LOAD", tree->attr.name, t1, t2);
+            fprintf(listing, "%s = %s[%s]\n", t2, tree->attr.name, t1);
             return t2;
             
         case OpK:
@@ -59,25 +66,26 @@ static char *cGen(TreeNode *tree) {
             t2 = cGen(tree->child[1]);
             t3 = newTemp();
             
+            char *opStr;
             switch (tree->attr.op) {
-            case PLUS: strcpy(opStr, "+"); break;
-            case MINUS: strcpy(opStr, "-"); break;
-            case TIMES: strcpy(opStr, "*"); break;
-            case OVER: strcpy(opStr, "/"); break;
-            case LT: strcpy(opStr, "<"); break;
-            case LE: strcpy(opStr, "<="); break;
-            case GT: strcpy(opStr, ">"); break;
-            case GE: strcpy(opStr, ">="); break;
-            case EQ: strcpy(opStr, "=="); break;
-            case NE: strcpy(opStr, "!="); break;
-            default: strcpy(opStr, "?"); break;
+            case PLUS: opStr = "+"; break;
+            case MINUS: opStr = "-"; break;
+            case TIMES: opStr = "*"; break;
+            case OVER: opStr = "/"; break;
+            case LT: opStr = "<"; break;
+            case LE: opStr = "<="; break;
+            case GT: opStr = ">"; break;
+            case GE: opStr = ">="; break;
+            case EQ: opStr = "=="; break;
+            case NE: opStr = "!="; break;
+            default: opStr = "?"; break;
             }
             
-            emitCode(opStr, t1, t2, t3);
+            fprintf(listing, "%s = %s %s %s\n", t3, t1, opStr, t2);
             return t3;
             
         default:
-            return "-";
+            return NULL;
         }
         break;
         
@@ -88,13 +96,13 @@ static char *cGen(TreeNode *tree) {
                 /* Atribuição a array: arr[i] = expr */
                 t1 = cGen(tree->child[0]->child[0]); /* índice */
                 t2 = cGen(tree->child[1]); /* valor */
-                emitCode("ARR_STORE", t2, t1, tree->attr.name);
+                fprintf(listing, "%s[%s] = %s\n", tree->attr.name, t1, t2);
             } else {
                 /* Atribuição simples: var = expr */
                 t1 = cGen(tree->child[1]);
-                emitCode("=", t1, "-", tree->attr.name);
+                fprintf(listing, "%s = %s\n", tree->attr.name, t1);
             }
-            return "-";
+            break;
             
         case IfK:
             {
@@ -102,80 +110,74 @@ static char *cGen(TreeNode *tree) {
                 char *labelEnd = newLabel();
                 
                 t1 = cGen(tree->child[0]); /* condição */
-                emitCode("IF_FALSE", t1, "-", labelElse);
+                emitIfFalse(t1, labelElse);
                 
                 /* Bloco then */
                 if (tree->child[1] != NULL)
                     cGen(tree->child[1]);
                 
-                emitCode("GOTO", "-", "-", labelEnd);
-                emitCode("LABEL", "-", "-", labelElse);
-                
-                /* Bloco else */
-                if (tree->child[2] != NULL)
+                if (tree->child[2] != NULL) {
+                    emitGoto(labelEnd);
+                    emitLabel(labelElse);
+                    /* Bloco else */
                     cGen(tree->child[2]);
-                
-                emitCode("LABEL", "-", "-", labelEnd);
+                    emitLabel(labelEnd);
+                } else {
+                    emitLabel(labelElse);
+                }
             }
-            return "-";
+            break;
             
         case WhileK:
             {
                 char *labelStart = newLabel();
                 char *labelEnd = newLabel();
                 
-                emitCode("LABEL", "-", "-", labelStart);
+                emitLabel(labelStart);
                 t1 = cGen(tree->child[0]); /* condição */
-                emitCode("IF_FALSE", t1, "-", labelEnd);
+                emitIfFalse(t1, labelEnd);
                 
                 /* Corpo do loop */
                 if (tree->child[1] != NULL)
                     cGen(tree->child[1]);
                 
-                emitCode("GOTO", "-", "-", labelStart);
-                emitCode("LABEL", "-", "-", labelEnd);
+                emitGoto(labelStart);
+                emitLabel(labelEnd);
             }
-            return "-";
+            break;
             
         case ReturnK:
             if (tree->child[0] != NULL) {
                 t1 = cGen(tree->child[0]);
-                emitCode("RETURN", t1, "-", "-");
+                fprintf(listing, "return %s\n", t1);
             } else {
-                emitCode("RETURN", "-", "-", "-");
+                fprintf(listing, "return\n");
             }
-            return "-";
+            break;
             
         case CallK:
             {
                 /* Processar argumentos */
                 TreeNode *arg = tree->child[0];
-                int argCount = 0;
                 while (arg != NULL) {
                     t1 = cGen(arg);
-                    emitCode("PARAM", t1, "-", "-");
-                    argCount++;
+                    fprintf(listing, "param %s\n", t1);
                     arg = arg->sibling;
                 }
                 
-                t1 = newTemp();
-                char argCountStr[20];
-                sprintf(argCountStr, "%d", argCount);
-                emitCode("CALL", tree->attr.name, argCountStr, t1);
-                return t1;
+                t2 = newTemp();
+                fprintf(listing, "%s = call %s\n", t2, tree->attr.name);
+                return t2;
             }
             
         case FunDeclK:
             {
-                char *typeStr = (tree->type == Integer) ? "int" : "void";
-                emitCode("FUN", typeStr, tree->attr.name, "-");
+                fprintf(listing, "\nfunc %s:\n", tree->attr.name);
                 
                 /* Parâmetros */
                 TreeNode *param = tree->child[0];
                 while (param != NULL) {
-                    char *pType = (param->type == Integer) ? "int" : 
-                                  (param->type == IntegerArray) ? "int[]" : "void";
-                    emitCode("ARG", pType, param->attr.name, tree->attr.name);
+                    fprintf(listing, "param %s\n", param->attr.name);
                     param = param->sibling;
                 }
                 
@@ -183,50 +185,50 @@ static char *cGen(TreeNode *tree) {
                 if (tree->child[1] != NULL)
                     cGen(tree->child[1]);
                 
-                emitCode("ENDFUN", tree->attr.name, "-", "-");
+                fprintf(listing, "endfunc %s\n", tree->attr.name);
             }
-            return "-";
+            break;
             
         case VarDeclK:
-            {
-                char *typeStr = (tree->type == IntegerArray) ? "int[]" : "int";
-                if (tree->type == IntegerArray) {
-                    char sizeStr[20];
-                    sprintf(sizeStr, "%d", tree->arraySize);
-                    emitCode("VAR", typeStr, tree->attr.name, sizeStr);
-                } else {
-                    emitCode("VAR", typeStr, tree->attr.name, "-");
-                }
+            if (tree->type == IntegerArray) {
+                fprintf(listing, "var %s[%d]\n", tree->attr.name, tree->arraySize);
+            } else {
+                fprintf(listing, "var %s\n", tree->attr.name);
             }
-            return "-";
+            break;
             
         case CompoundK:
             if (tree->child[0] != NULL) /* declarações locais */
                 cGen(tree->child[0]);
             if (tree->child[1] != NULL) /* lista de statements */
                 cGen(tree->child[1]);
-            return "-";
+            break;
             
         default:
-            return "-";
+            break;
         }
         break;
         
     default:
-        return "-";
+        break;
     }
     
-    return "-";
+    /* Processa irmãos */
+    if (tree->sibling != NULL) {
+        cGen(tree->sibling);
+    }
+    
+    return NULL;
 }
 
 /* Gera código para árvore completa */
 void codeGen(TreeNode *syntaxTree) {
-    TreeNode *t = syntaxTree;
+    fprintf(listing, "\n>>> Código Intermediário (AST Linearizada) <<<\n\n");
+    tempCounter = 0;
+    labelCounter = 0;
     
-    while (t != NULL) {
-        cGen(t);
-        t = t->sibling;
-    }
+    /* cGen já processa irmãos internamente, então só chamamos uma vez */
+    cGen(syntaxTree);
     
-    emitCode("HALT", "-", "-", "-");
+    fprintf(listing, "\n>>> Fim do Código Intermediário <<<\n");
 }
