@@ -107,7 +107,6 @@ static void afterNode(TreeNode *t) {
 }
 
 static void checkNode(TreeNode *t) {
-    BucketList l;
     
     switch (t->nodekind) {
     case ExpK:
