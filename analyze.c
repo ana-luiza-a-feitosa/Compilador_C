@@ -31,7 +31,19 @@ static void addSymbol(char *name, char *scope, ExpType type) {
     symbolList = rec;
 }
 
-/* Verifica se símbolo foi declarado */
+static int symbolExistsInScope(char *name, char *scope) {
+    SymbolRec *rec = symbolList;
+    while (rec != NULL) {
+        /* Procura APENAS no escopo específico */
+        if (strcmp(rec->name, name) == 0 && strcmp(rec->scope, scope) == 0) {
+            return 1;  /* Encontrou no mesmo escopo */
+        }
+        rec = rec->next;
+    }
+    return 0;  /* Não encontrou no escopo */
+}
+
+/* Verifica se símbolo foi declarado (escopo atual ou global) */
 static int symbolExists(char *name, char *scope) {
     SymbolRec *rec = symbolList;
     while (rec != NULL) {
@@ -81,56 +93,87 @@ static void insertNode(TreeNode *t) {
     case StmtK:
         switch (t->kind.stmt) {
         case FunDeclK:
+            /* VERIFICA REDECLARAÇÃO DE FUNÇÃO */
+            if (symbolExistsInScope(t->attr.name, "global")) {
+                fprintf(listing, "\nERRO SEMANTICO: funcao '%s' ja declarada - LINHA: %d\n",
+                        t->attr.name, t->lineno);
+                Error = TRUE;
+                /* NÃO insere novamente */
+                return;
+            }
+            
             /* Verifica se é a função main */
             if (strcmp(t->attr.name, "main") == 0) {
                 hasMain = 1;
                 
                 /* Verifica se main é void (tipo de retorno) */
                 if (t->type != Void) {
-                    fprintf(listing, "ERRO SEMANTICO: funcao 'main' deve retornar 'void', nao '%s' - LINHA: %d\n",
+                    fprintf(listing, "\nERRO SEMANTICO: funcao 'main' deve retornar 'void', nao '%s' - LINHA: %d\n",
                             t->type == Integer ? "int" : "outro tipo",
                             t->lineno);
                     Error = TRUE;
                 }
-                /* Nota: Verificação de parâmetros já é feita no parser */
             }
             
-            /* Sempre inserimos funções no escopo global */
+            /* Insere função no escopo global */
             st_insert(t->attr.name, t->lineno, location++, t->type, "global");
             addSymbol(t->attr.name, "global", t->type);
             currentScope = t->attr.name;
             break;
+            
         case VarDeclK:
+            /* VERIFICA REDECLARAÇÃO DE VARIÁVEL NO MESMO ESCOPO */
+            if (symbolExistsInScope(t->attr.name, currentScope)) {
+                fprintf(listing, "\nERRO SEMANTICO: variavel '%s' ja declarada no escopo '%s' - LINHA: %d\n",
+                        t->attr.name, currentScope, t->lineno);
+                Error = TRUE;
+                /* NÃO insere novamente */
+                return;
+            }
+            
             /* Insere variável no escopo atual */
             st_insert(t->attr.name, t->lineno, location++, t->type, currentScope);
             addSymbol(t->attr.name, currentScope, t->type);
             break;
+            
         case ParamK:
             if (t->attr.name != NULL) {
+                /* VERIFICA REDECLARAÇÃO DE PARÂMETRO */
+                if (symbolExistsInScope(t->attr.name, currentScope)) {
+                    fprintf(listing, "\nERRO SEMANTICO: parametro '%s' ja declarado na funcao '%s' - LINHA: %d\n",
+                            t->attr.name, currentScope, t->lineno);
+                    Error = TRUE;
+                    /* NÃO insere novamente */
+                    return;
+                }
+                
                 /* Insere parâmetro no escopo da função */
                 st_insert(t->attr.name, t->lineno, location++, t->type, currentScope);
                 addSymbol(t->attr.name, currentScope, t->type);
             }
             break;
+            
         case AssignK:
             /* Verifica se a variável foi declarada */
             if (!symbolExists(t->attr.name, currentScope)) {
-                fprintf(listing, "ERRO SEMANTICO: identificador '%s' nao declarado - LINHA: %d\n",
+                fprintf(listing, "\nERRO SEMANTICO: identificador '%s' nao declarado - LINHA: %d\n",
                         t->attr.name, t->lineno);
                 Error = TRUE;
             }
             break;
+            
         default:
             break;
         }
         break;
+        
     case ExpK:
         switch (t->kind.exp) {
         case IdK:
         case ArrIdK:
             /* Verifica se a variável foi declarada */
             if (!symbolExists(t->attr.name, currentScope)) {
-                fprintf(listing, "ERRO SEMANTICO: identificador '%s' nao declarado - LINHA: %d\n",
+                fprintf(listing, "\nERRO SEMANTICO: identificador '%s' nao declarado - LINHA: %d\n",
                         t->attr.name, t->lineno);
                 Error = TRUE;
             } else {
@@ -142,6 +185,7 @@ static void insertNode(TreeNode *t) {
             break;
         }
         break;
+        
     default:
         break;
     }

@@ -71,6 +71,21 @@ int st_lookup(char *name) {
     else return l->memloc;
 }
 
+int st_lookup_scope(char *name, char *scope) {
+    int h = hash(name);
+    BucketList l = hashTable[h];
+    
+    while (l != NULL) {
+        /* Verifica se o nome E o escopo são iguais */
+        if (strcmp(name, l->name) == 0 && strcmp(scope, l->scope) == 0) {
+            return l->memloc;  /* Encontrou no mesmo escopo */
+        }
+        l = l->next;
+    }
+    
+    return -1;  /* Não encontrou no escopo */
+}
+
 void printSymTab(FILE *listing) {
     int i;
     
