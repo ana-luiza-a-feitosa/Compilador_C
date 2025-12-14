@@ -223,12 +223,12 @@ static char *cGen(TreeNode *tree) {
 
 /* Gera código para árvore completa */
 void codeGen(TreeNode *syntaxTree) {
-    fprintf(listing, "\n>>> Código Intermediário (AST Linearizada) <<<\n\n");
+    fprintf(listing, "\n>>> Codigo Intermediario (AST Linearizada) <<<\n\n");
     tempCounter = 0;
     labelCounter = 0;
     
     /* cGen já processa irmãos internamente, então só chamamos uma vez */
     cGen(syntaxTree);
     
-    fprintf(listing, "\n>>> Fim do Código Intermediário <<<\n");
+    fprintf(listing, "\n>>> Fim do Codigo Intermediario <<<\n");
 }

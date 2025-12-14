@@ -1,5 +1,4 @@
-/* Teste com arrays e loops */
-
+/*Teste com arrays e loops*/
 int fatorial(int n)
 {
     int result;
@@ -8,7 +7,7 @@ int fatorial(int n)
         result = result * n;
         n = n - 1;
     }
-    return result;
+    return result; /*Retorno da funcao*/
 }
 
 void main(void)
@@ -27,5 +26,5 @@ void main(void)
     }
     
     output(total);
-    output(fatorial(5));
+    output(fatorial(2));
 }

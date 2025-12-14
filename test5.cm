@@ -9,10 +9,10 @@ int factorial(int n) {
     return result;
 }
 
-int main(void) {
+void main(void) {
     int num;
     num = 5;
     output = factorial(num);
-    return 0;
+
 }
 */

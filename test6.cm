@@ -1,6 +1,5 @@
 /* Exemplo 6: Arrays */
-/*
-int main(void) {
+void main(void) {
     int v[10];
     int i;
     int soma;
@@ -14,7 +13,7 @@ int main(void) {
         i = i + 1;
     }
     
-    output = soma;
+    output(soma);
     return 0;
 }
-*/
+

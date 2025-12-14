@@ -1,4 +1,4 @@
-/* Teste condicional */
+/* Calcula maximo e minimo */
 
 int max(int a, int b)
 {

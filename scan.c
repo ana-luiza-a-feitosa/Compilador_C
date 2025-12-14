@@ -147,7 +147,7 @@ TokenType getToken(void) {
                 /* ERRO: Comentário não fechado - chegou ao fim do arquivo */
                 state = DONE;
                 currentToken = ENDFILE;
-                fprintf(listing, "\nERRO LEXICO: Comentario nao fechado iniciado na linha %d\n", 
+                fprintf(listing, "\nERRO LEXICO: Comentario nao fechado - LINHA %d\n", 
                         commentStartLine);
                 Error = TRUE;
             } else if (c == '*') {
@@ -158,7 +158,7 @@ TokenType getToken(void) {
                     /* ERRO: EOF dentro de possível fechamento de comentário */
                     state = DONE;
                     currentToken = ENDFILE;
-                    fprintf(listing, "\nERRO LEXICO: Comentario nao fechado iniciado na linha %d\n", 
+                    fprintf(listing, "\nERRO LEXICO: Comentario nao fechado - LINHA %d\n", 
                             commentStartLine);
                     Error = TRUE;
                 } else {

@@ -73,27 +73,25 @@ int st_lookup(char *name) {
 
 void printSymTab(FILE *listing) {
     int i;
-    fprintf(listing, "Nome        Escopo      Tipo        Linha\n");
-    fprintf(listing, "----------- ----------- ----------- -----\n");
+    
+    /* Cabeçalho da tabela - SEM coluna de Linha */
+    fprintf(listing, "%-15s %-15s %-10s\n", "Nome", "Escopo", "Tipo");
+    fprintf(listing, "%-15s %-15s %-10s\n", "---------------", "---------------", "----------");
     
     for (i = 0; i < SIZE; ++i) {
         if (hashTable[i] != NULL) {
             BucketList l = hashTable[i];
             while (l != NULL) {
-                LineList t = l->lines;
-                fprintf(listing, "%-11s %-11s ", l->name, l->scope);
+                /* Imprime: Nome, Escopo, Tipo - SEM linhas */
+                fprintf(listing, "%-15s %-15s ", l->name, l->scope);
                 
                 switch (l->type) {
-                case Integer: fprintf(listing, "%-11s ", "int"); break;
-                case Void: fprintf(listing, "%-11s ", "void"); break;
-                case IntegerArray: fprintf(listing, "%-11s ", "int[]"); break;
-                default: fprintf(listing, "%-11s ", "?"); break;
+                case Integer: fprintf(listing, "%-10s", "int"); break;
+                case Void: fprintf(listing, "%-10s", "void"); break;
+                case IntegerArray: fprintf(listing, "%-10s", "int[]"); break;
+                default: fprintf(listing, "%-10s", "?"); break;
                 }
                 
-                while (t != NULL) {
-                    fprintf(listing, "%4d ", t->lineno);
-                    t = t->next;
-                }
                 fprintf(listing, "\n");
                 l = l->next;
             }

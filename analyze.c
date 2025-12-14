@@ -9,21 +9,24 @@
 
 static char *currentScope = "global";
 static int location = 0;
+static int hasMain = 0;  /* Flag para verificar se main existe */
 
 /* Lista temporária para rastrear variáveis declaradas */
 typedef struct SymbolRec {
     char *name;
     char *scope;
+    ExpType type;
     struct SymbolRec *next;
 } SymbolRec;
 
 static SymbolRec *symbolList = NULL;
 
 /* Adiciona símbolo à lista */
-static void addSymbol(char *name, char *scope) {
+static void addSymbol(char *name, char *scope, ExpType type) {
     SymbolRec *rec = (SymbolRec *)malloc(sizeof(SymbolRec));
     rec->name = copyString(name);
     rec->scope = copyString(scope);
+    rec->type = type;
     rec->next = symbolList;
     symbolList = rec;
 }
@@ -47,8 +50,8 @@ static int symbolExists(char *name, char *scope) {
 static void insertBuiltins(void) {
     st_insert("input", 0, location++, Integer, "global");
     st_insert("output", 0, location++, Void, "global");
-    addSymbol("input", "global");
-    addSymbol("output", "global");
+    addSymbol("input", "global", Integer);
+    addSymbol("output", "global", Void);
 }
 
 /* Percorre a árvore em pré-ordem inserindo identificadores na tabela */
@@ -78,21 +81,35 @@ static void insertNode(TreeNode *t) {
     case StmtK:
         switch (t->kind.stmt) {
         case FunDeclK:
+            /* Verifica se é a função main */
+            if (strcmp(t->attr.name, "main") == 0) {
+                hasMain = 1;
+                
+                /* Verifica se main é void (tipo de retorno) */
+                if (t->type != Void) {
+                    fprintf(listing, "ERRO SEMANTICO: funcao 'main' deve retornar 'void', nao '%s' - LINHA: %d\n",
+                            t->type == Integer ? "int" : "outro tipo",
+                            t->lineno);
+                    Error = TRUE;
+                }
+                /* Nota: Verificação de parâmetros já é feita no parser */
+            }
+            
             /* Sempre inserimos funções no escopo global */
             st_insert(t->attr.name, t->lineno, location++, t->type, "global");
-            addSymbol(t->attr.name, "global");
+            addSymbol(t->attr.name, "global", t->type);
             currentScope = t->attr.name;
             break;
         case VarDeclK:
             /* Insere variável no escopo atual */
             st_insert(t->attr.name, t->lineno, location++, t->type, currentScope);
-            addSymbol(t->attr.name, currentScope);
+            addSymbol(t->attr.name, currentScope, t->type);
             break;
         case ParamK:
             if (t->attr.name != NULL) {
                 /* Insere parâmetro no escopo da função */
                 st_insert(t->attr.name, t->lineno, location++, t->type, currentScope);
-                addSymbol(t->attr.name, currentScope);
+                addSymbol(t->attr.name, currentScope, t->type);
             }
             break;
         case AssignK:
@@ -227,9 +244,16 @@ static void checkNode(TreeNode *t) {
 
 void buildSymtab(TreeNode *syntaxTree) {
     symbolList = NULL; /* Reset lista de símbolos */
+    hasMain = 0;       /* Reset flag de main */
     insertBuiltins();
     traverse(syntaxTree, insertNode, afterNode);
     currentScope = "global";
+    
+    /* VERIFICA SE MAIN EXISTE */
+    if (!hasMain) {
+        fprintf(listing, "\nERRO SEMANTICO: programa deve conter uma funcao 'void main(void)'\n");
+        Error = TRUE;
+    }
 }
 
 void typeCheck(TreeNode *syntaxTree) {

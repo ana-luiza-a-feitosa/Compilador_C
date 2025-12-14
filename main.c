@@ -28,7 +28,9 @@ int SemanticError = FALSE;  /* Novo: erros semânticos separados */
 int main(int argc, char *argv[]) {
     TreeNode *syntaxTree;
     char pgm[120];
-    char dotfile[120];
+    char baseName[120];
+    char dotFilename[150];
+    char pngFilename[150];
     
     if (argc != 2) {
         fprintf(stderr, "Uso: %s <arquivo.cm>\n", argv[0]);
@@ -36,6 +38,15 @@ int main(int argc, char *argv[]) {
     }
     
     strcpy(pgm, argv[1]);
+    
+    /* Extrai o nome base do arquivo (sem extensão) */
+    strcpy(baseName, pgm);
+    char *dot = strrchr(baseName, '.');
+    if (dot != NULL) *dot = '\0';
+    
+    /* Gera nomes dos arquivos de saída para Graphviz */
+    snprintf(dotFilename, sizeof(dotFilename), "ast_%s.dot", baseName);
+    snprintf(pngFilename, sizeof(pngFilename), "ast_%s.png", baseName);
     
     source = fopen(pgm, "r");
     if (source == NULL) {
@@ -103,18 +114,7 @@ int main(int argc, char *argv[]) {
     fprintf(listing, "========================================\n");
     fprintf(listing, "    GERACAO DE GRAFICO GRAPHVIZ\n");
     fprintf(listing, "========================================\n");
-    
-    /* Cria nome do arquivo .dot baseado no arquivo de entrada */
-    strcpy(dotfile, pgm);
-    char *dot = strrchr(dotfile, '.');
-    if (dot != NULL) {
-        strcpy(dot, ".dot");
-    } else {
-        strcat(dotfile, ".dot");
-    }
-    
-    printTreeDot(syntaxTree, dotfile);
-    fprintf(listing, "\n");
+    printTreeDot(syntaxTree, dotFilename, pngFilename);
     
     /* FASE 3: Geração de Código Intermediário */
     fprintf(listing, "========================================\n");
@@ -122,10 +122,13 @@ int main(int argc, char *argv[]) {
     fprintf(listing, "========================================\n");
     codeGen(syntaxTree);
     fprintf(listing, "\n");
+
+    fprintf(listing, "\n");
     
     fprintf(listing, "========================================\n");
-    fprintf(listing, "COMPILACAO CONCLUIDA COM SUCESSO!\n");
+    fprintf(listing, "COMPILACAO CONCLUIDA!\n");
     fprintf(listing, "========================================\n");
+    fprintf(listing, "\n");
     
     return 0;
 }
