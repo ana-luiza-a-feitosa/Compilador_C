@@ -23,10 +23,12 @@ int TraceParse = FALSE;
 int TraceAnalyze = FALSE;
 int TraceCode = FALSE;
 int Error = FALSE;
+int SemanticError = FALSE;  /* Novo: erros semânticos separados */
 
 int main(int argc, char *argv[]) {
     TreeNode *syntaxTree;
     char pgm[120];
+    char dotfile[120];
     
     if (argc != 2) {
         fprintf(stderr, "Uso: %s <arquivo.cm>\n", argv[0]);
@@ -56,7 +58,7 @@ int main(int argc, char *argv[]) {
     
     if (Error) {
         fprintf(listing, "\n========================================\n");
-        fprintf(listing, "COMPILACAO ABORTADA: Erros na analise sintatica\n");
+        fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
         fprintf(listing, "========================================\n");
         exit(1);
     }
@@ -90,11 +92,28 @@ int main(int argc, char *argv[]) {
     printSymTab(listing);
     fprintf(listing, "\n");
     
-    /* SAÍDA 2: Árvore Sintática Abstrata */
+    /* SAÍDA 2: Árvore Sintática Abstrata (Textual) */
     fprintf(listing, "========================================\n");
     fprintf(listing, "    ARVORE SINTATICA ABSTRATA (AST)\n");
     fprintf(listing, "========================================\n");
     printTree(syntaxTree);
+    fprintf(listing, "\n");
+    
+    /* SAÍDA 3: Árvore em formato Graphviz */
+    fprintf(listing, "========================================\n");
+    fprintf(listing, "    GERACAO DE GRAFICO GRAPHVIZ\n");
+    fprintf(listing, "========================================\n");
+    
+    /* Cria nome do arquivo .dot baseado no arquivo de entrada */
+    strcpy(dotfile, pgm);
+    char *dot = strrchr(dotfile, '.');
+    if (dot != NULL) {
+        strcpy(dot, ".dot");
+    } else {
+        strcat(dotfile, ".dot");
+    }
+    
+    printTreeDot(syntaxTree, dotfile);
     fprintf(listing, "\n");
     
     /* FASE 3: Geração de Código Intermediário */

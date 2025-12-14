@@ -1,8 +1,7 @@
 int main(void) {
-    int x;
-    int y;
-    x = input;
+    x = input();
+    y = input();
     y = x * 2;
-    output = y;
+    output();
     return 0;
 }

@@ -97,6 +97,7 @@ char *copyString(char *s) {
 }
 
 static int indentno = 0;
+static int nodeCounter = 0;
 
 #define INDENT indentno += 2
 #define UNINDENT indentno -= 2
@@ -107,6 +108,93 @@ static void printSpaces(void) {
         fprintf(listing, " ");
 }
 
+/* Gera arquivo Graphviz (.dot) */
+static FILE *dotFile = NULL;
+
+static void printDotNode(TreeNode *tree, int parentId, int childNum) {
+    if (tree == NULL) return;
+    
+    int myId = nodeCounter++;
+    char label[100];
+    
+    if (tree->nodekind == StmtK) {
+        switch (tree->kind.stmt) {
+        case IfK: strcpy(label, "IF"); break;
+        case WhileK: strcpy(label, "WHILE"); break;
+        case AssignK: strcpy(label, ":="); break;
+        case ReturnK: strcpy(label, "RETURN"); break;
+        case FunDeclK: sprintf(label, "FUNC\\n%s", tree->attr.name); break;
+        case VarDeclK: sprintf(label, "VAR\\n%s", tree->attr.name); break;
+        case ParamK: sprintf(label, "PARAM\\n%s", tree->attr.name); break;
+        case CallK: sprintf(label, "CALL\\n%s", tree->attr.name); break;
+        case CompoundK: strcpy(label, "BLOCK"); break;
+        default: strcpy(label, "?"); break;
+        }
+    } else if (tree->nodekind == ExpK) {
+        switch (tree->kind.exp) {
+        case OpK:
+            switch(tree->attr.op) {
+                case PLUS: strcpy(label, "+"); break;
+                case MINUS: strcpy(label, "-"); break;
+                case TIMES: strcpy(label, "*"); break;
+                case OVER: strcpy(label, "/"); break;
+                case LT: strcpy(label, "<"); break;
+                case LE: strcpy(label, "<="); break;
+                case GT: strcpy(label, ">"); break;
+                case GE: strcpy(label, ">="); break;
+                case EQ: strcpy(label, "=="); break;
+                case NE: strcpy(label, "!="); break;
+                default: strcpy(label, "?"); break;
+            }
+            break;
+        case ConstK: sprintf(label, "%d", tree->attr.val); break;
+        case IdK: sprintf(label, "%s", tree->attr.name); break;
+        case ArrIdK: sprintf(label, "%s[]", tree->attr.name); break;
+        default: strcpy(label, "?"); break;
+        }
+    }
+    
+    fprintf(dotFile, "  node%d [label=\"%s\"];\n", myId, label);
+    
+    if (parentId >= 0) {
+        fprintf(dotFile, "  node%d -> node%d;\n", parentId, myId);
+    }
+    
+    int i;
+    for (i = 0; i < MAXCHILDREN; i++) {
+        if (tree->child[i] != NULL) {
+            printDotNode(tree->child[i], myId, i);
+        }
+    }
+    
+    if (tree->sibling != NULL) {
+        printDotNode(tree->sibling, parentId, childNum + 1);
+    }
+}
+
+/* Função para gerar arquivo .dot */
+void printTreeDot(TreeNode *tree, const char *filename) {
+    dotFile = fopen(filename, "w");
+    if (dotFile == NULL) {
+        fprintf(listing, "Erro ao criar arquivo .dot\n");
+        return;
+    }
+    
+    fprintf(dotFile, "digraph AST {\n");
+    fprintf(dotFile, "  node [shape=circle, style=filled, fillcolor=lightblue];\n");
+    fprintf(dotFile, "  edge [color=black];\n");
+    
+    nodeCounter = 0;
+    printDotNode(tree, -1, 0);
+    
+    fprintf(dotFile, "}\n");
+    fclose(dotFile);
+    
+    fprintf(listing, "\nArquivo Graphviz gerado: %s\n", filename);
+    fprintf(listing, "Para visualizar, execute: dot -Tpng %s -o ast.png\n", filename);
+}
+
+/* Impressão textual simplificada */
 void printTree(TreeNode *tree) {
     int i;
     INDENT;

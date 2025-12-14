@@ -4,15 +4,51 @@
 
 #include "globals.h"
 #include "symtab.h"
+#include "util.h"
 #include "analyze.h"
 
 static char *currentScope = "global";
 static int location = 0;
 
+/* Lista temporária para rastrear variáveis declaradas */
+typedef struct SymbolRec {
+    char *name;
+    char *scope;
+    struct SymbolRec *next;
+} SymbolRec;
+
+static SymbolRec *symbolList = NULL;
+
+/* Adiciona símbolo à lista */
+static void addSymbol(char *name, char *scope) {
+    SymbolRec *rec = (SymbolRec *)malloc(sizeof(SymbolRec));
+    rec->name = copyString(name);
+    rec->scope = copyString(scope);
+    rec->next = symbolList;
+    symbolList = rec;
+}
+
+/* Verifica se símbolo foi declarado */
+static int symbolExists(char *name, char *scope) {
+    SymbolRec *rec = symbolList;
+    while (rec != NULL) {
+        /* Procura no escopo atual ou global */
+        if (strcmp(rec->name, name) == 0) {
+            if (strcmp(rec->scope, scope) == 0 || strcmp(rec->scope, "global") == 0) {
+                return 1;
+            }
+        }
+        rec = rec->next;
+    }
+    return 0;
+}
+
 /* Inserir funções built-in (input e output) */
 static void insertBuiltins(void) {
     st_insert("input", 0, location++, Integer, "global");
     st_insert("output", 0, location++, Void, "global");
+    addSymbol("input", "global");
+    addSymbol("output", "global");
 }
 
 /* Percorre a árvore em pré-ordem inserindo identificadores na tabela */
@@ -44,16 +80,27 @@ static void insertNode(TreeNode *t) {
         case FunDeclK:
             /* Sempre inserimos funções no escopo global */
             st_insert(t->attr.name, t->lineno, location++, t->type, "global");
+            addSymbol(t->attr.name, "global");
             currentScope = t->attr.name;
             break;
         case VarDeclK:
             /* Insere variável no escopo atual */
             st_insert(t->attr.name, t->lineno, location++, t->type, currentScope);
+            addSymbol(t->attr.name, currentScope);
             break;
         case ParamK:
             if (t->attr.name != NULL) {
                 /* Insere parâmetro no escopo da função */
                 st_insert(t->attr.name, t->lineno, location++, t->type, currentScope);
+                addSymbol(t->attr.name, currentScope);
+            }
+            break;
+        case AssignK:
+            /* Verifica se a variável foi declarada */
+            if (!symbolExists(t->attr.name, currentScope)) {
+                fprintf(listing, "ERRO SEMANTICO: identificador '%s' nao declarado - LINHA: %d\n",
+                        t->attr.name, t->lineno);
+                Error = TRUE;
             }
             break;
         default:
@@ -64,9 +111,15 @@ static void insertNode(TreeNode *t) {
         switch (t->kind.exp) {
         case IdK:
         case ArrIdK:
-            /* Apenas registra uso, sem verificar se existe */
-            /* A verificação real seria feita com busca em múltiplos escopos */
-            st_insert(t->attr.name, t->lineno, 0, t->type, currentScope);
+            /* Verifica se a variável foi declarada */
+            if (!symbolExists(t->attr.name, currentScope)) {
+                fprintf(listing, "ERRO SEMANTICO: identificador '%s' nao declarado - LINHA: %d\n",
+                        t->attr.name, t->lineno);
+                Error = TRUE;
+            } else {
+                /* Apenas registra uso */
+                st_insert(t->attr.name, t->lineno, 0, t->type, currentScope);
+            }
             break;
         default:
             break;
@@ -149,6 +202,12 @@ static void checkNode(TreeNode *t) {
             }
             break;
         case CallK:
+            /* Verifica se a função foi declarada */
+            if (!symbolExists(t->attr.name, "global")) {
+                fprintf(listing, "ERRO SEMANTICO: funcao '%s' nao declarada - LINHA: %d\n",
+                        t->attr.name, t->lineno);
+                Error = TRUE;
+            }
             /* Chamadas de função retornam tipo Integer por padrão */
             if (strcmp(t->attr.name, "input") == 0)
                 t->type = Integer;
@@ -167,6 +226,7 @@ static void checkNode(TreeNode *t) {
 }
 
 void buildSymtab(TreeNode *syntaxTree) {
+    symbolList = NULL; /* Reset lista de símbolos */
     insertBuiltins();
     traverse(syntaxTree, insertNode, afterNode);
     currentScope = "global";
