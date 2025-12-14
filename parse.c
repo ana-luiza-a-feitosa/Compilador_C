@@ -113,14 +113,33 @@ TreeNode *declaration(void) {
     ExpType type;
     char *identifier;
     
-    if (token == INT) type = Integer;
-    else if (token == VOID) type = Void;
-    else {
-        syntaxError("tipo esperado (int ou void)");
+    /* Verifica se é um tipo válido (int ou void) */
+    if (token == INT) {
+        type = Integer;
+        match(token);
+    } else if (token == VOID) {
+        type = Void;
+        match(token);
+    } else {
+        /* ERRO: tipo inválido ou token inesperado */
+        if (token == ID) {
+            /* Pode ser tentativa de usar float, char, double, etc */
+            fprintf(listing, "\nERRO SINTATICO: tipo '%s' nao e permitido, use 'int' ou 'void' - LINHA: %d\n", 
+                    tokenString, lineno);
+        } else {
+            fprintf(listing, "\nERRO SINTATICO: tipo esperado (int ou void) - LINHA: %d\n", lineno);
+        }
+        Error = TRUE;
+        
+        /* Tenta recuperar: consome tokens até encontrar ';' ou '{' ou EOF */
+        while (token != SEMI && token != LBRACE && token != ENDFILE) {
+            token = getToken();
+        }
+        if (token == SEMI) match(SEMI);
         return NULL;
     }
-    match(token);
     
+    /* Verifica se tem identificador após o tipo */
     if (token == ID) {
         identifier = copyString(tokenString);
         match(ID);
@@ -129,6 +148,7 @@ TreeNode *declaration(void) {
         return NULL;
     }
     
+    /* Decide se é declaração de função ou variável */
     if (token == LPAREN) {
         t = fun_declaration();
         if (t != NULL) {
@@ -145,6 +165,7 @@ TreeNode *declaration(void) {
     
     return t;
 }
+
 
 
 TreeNode *var_declaration(void) {
@@ -241,18 +262,56 @@ TreeNode *compound_stmt(void) {
 
 TreeNode *local_declarations(void) {
     TreeNode *t = NULL;
-    TreeNode *p;
+    TreeNode *p = NULL;
     
     while (token == INT || token == VOID) {
         TreeNode *q = declaration();
         if (q != NULL) {
-            if (t == NULL) t = p = q;
-            else {
+            if (t == NULL) {
+                t = p = q;
+            } else {
                 p->sibling = q;
                 p = q;
             }
         }
     }
+    
+    /* Se encontrar ID que não é INT ou VOID, pode ser tipo inválido */
+    if (token == ID) {
+        /* Verifica se parece com um tipo (float, char, double, etc) */
+        char *possibleType = tokenString;
+        
+        /* Lista de tipos comuns que não são permitidos */
+        if (strcmp(possibleType, "float") == 0 || 
+            strcmp(possibleType, "char") == 0 || 
+            strcmp(possibleType, "double") == 0 ||
+            strcmp(possibleType, "long") == 0 ||
+            strcmp(possibleType, "short") == 0 ||
+            strcmp(possibleType, "bool") == 0 ||
+            strcmp(possibleType, "string") == 0) {
+            
+            fprintf(listing, "\nERRO SINTATICO: tipo '%s' nao e permitido em declaracao local, use 'int' ou 'void' - LINHA: %d\n", 
+                    possibleType, lineno);
+            Error = TRUE;
+            
+            /* Consome até encontrar ';' */
+            while (token != SEMI && token != RBRACE && token != ENDFILE) {
+                token = getToken();
+            }
+            if (token == SEMI) match(SEMI);
+            
+            /* Continua tentando processar declarações */
+            TreeNode *q = local_declarations();
+            if (q != NULL) {
+                if (t == NULL) {
+                    t = q;
+                } else {
+                    p->sibling = q;
+                }
+            }
+        }
+    }
+    
     return t;
 }
 
