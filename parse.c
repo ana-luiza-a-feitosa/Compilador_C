@@ -12,6 +12,7 @@ static TokenType token;
 static TreeNode *declaration_list(void);
 static TreeNode *declaration(void);
 static TreeNode *var_declaration(void);
+static TreeNode *fun_declaration(void);
 static TreeNode *params(void);
 static TreeNode *param_list(void);
 static TreeNode *param(void);
@@ -20,6 +21,7 @@ static TreeNode *local_declarations(void);
 static TreeNode *statement_list(void);
 static TreeNode *statement(void);
 static TreeNode *expression_stmt(void);
+static TreeNode *conditional_expression(void);
 static TreeNode *selection_stmt(void);
 static TreeNode *iteration_stmt(void);
 static TreeNode *return_stmt(void);
@@ -106,7 +108,6 @@ TreeNode *declaration_list(void) {
     return t;
 }
 
-
 TreeNode *declaration(void) {
     TreeNode *t = NULL;
     ExpType type;
@@ -129,80 +130,12 @@ TreeNode *declaration(void) {
     }
     
     if (token == LPAREN) {
-        /* É uma declaração de função */
-        match(LPAREN);
-        
-        /* DETECÇÃO ESPECIAL PARA MAIN */
-        if (strcmp(identifier, "main") == 0) {
-            /* Caso 1: main() - parênteses vazios */
-            if (token == RPAREN) {
-                fprintf(listing, "\nERRO SINTATICO: parametro na funcao 'main' inesperado '()', esperado 'void' - LINHA: %d\n", lineno);
-                Error = TRUE;
-                /* NÃO consome o RPAREN aqui - será consumido no match abaixo */
-            }
-            /* Caso 2: main(int x) ou main(qualquer coisa que não seja void) */
-            else if (token != VOID) {
-                char paramStr[100];
-                snprintf(paramStr, sizeof(paramStr), "%s", tokenString);
-                fprintf(listing, "\nERRO SINTATICO: parametro na funcao 'main' inesperado '%s', esperado 'void' - LINHA: %d\n", 
-                        paramStr, lineno);
-                Error = TRUE;
-                /* Consome tokens até encontrar RPAREN para recuperação de erro */
-                while (token != RPAREN && token != LBRACE && token != ENDFILE) {
-                    token = getToken();
-                }
-            }
-            /* Caso 3 e 4: Verificações após VOID */
-            else if (token == VOID) {
-                match(VOID);
-                if (token == COMMA) {
-                    fprintf(listing, "\nERRO SINTATICO: parametro na funcao 'main' inesperado ',', esperado ')' - LINHA: %d\n", lineno);
-                    fprintf(listing, "    A funcao 'main' deve ter apenas 'void' como parametro\n");
-                    Error = TRUE;
-                    /* Consome tokens até encontrar RPAREN */
-                    while (token != RPAREN && token != LBRACE && token != ENDFILE) {
-                        token = getToken();
-                    }
-                }
-                else if (token == ID) {
-                    char paramName[100];
-                    snprintf(paramName, sizeof(paramName), "void %s", tokenString);
-                    fprintf(listing, "\nERRO SINTATICO: parametro na funcao 'main' inesperado '%s', esperado 'void' - LINHA: %d\n", 
-                            paramName, lineno);
-                    Error = TRUE;
-                    /* Consome tokens até encontrar RPAREN */
-                    while (token != RPAREN && token != LBRACE && token != ENDFILE) {
-                        token = getToken();
-                    }
-                }
-                /* Se chegou void e depois ), está correto - já consumiu o void */
-            }
+        t = fun_declaration();
+        if (t != NULL) {
+            t->type = type;
+            t->attr.name = identifier;
         }
-        /* Para outras funções: apenas avisa se tiver parênteses vazios */
-        else if (token == RPAREN) {
-            fprintf(listing, "\nERRO SINTATICO: funcao '%s' com lista de parametros vazia - LINHA: %d\n", 
-                    identifier, lineno);
-            fprintf(listing, "    Use 'void' para indicar ausencia de parametros: '%s(void)'\n", identifier);
-            Error = TRUE;
-            /* NÃO consome o RPAREN aqui */
-        }
-        
-        /* Cria o nó da função */
-        t = newStmtNode(FunDeclK);
-        t->type = type;
-        t->attr.name = identifier;
-        
-        /* Processa parâmetros normalmente (ou pula se já deu erro) */
-        if (token != RPAREN) {
-            t->child[0] = params();
-        } else {
-            t->child[0] = NULL; /* Sem parâmetros */
-        }
-        
-        match(RPAREN);
-        t->child[1] = compound_stmt();
     } else {
-        /* É uma declaração de variável */
         t = var_declaration();
         if (t != NULL) {
             t->type = type;
@@ -213,19 +146,39 @@ TreeNode *declaration(void) {
     return t;
 }
 
+
 TreeNode *var_declaration(void) {
     TreeNode *t = newStmtNode(VarDeclK);
     
     if (token == LBRACKET) {
         match(LBRACKET);
+        
+        /* CORREÇÃO: Em declaração de variável, o tamanho é OBRIGATÓRIO */
         if (token == NUM) {
             t->arraySize = atoi(tokenString);
             t->type = IntegerArray;
             match(NUM);
+        } else {
+            /* ERRO: declaração de array sem tamanho */
+            syntaxError("tamanho do array esperado em declaracao de variavel");
+            /* Tenta recuperar consumindo até ] ou ; */
+            while (token != RBRACKET && token != SEMI && token != ENDFILE) {
+                token = getToken();
+            }
         }
+        
         match(RBRACKET);
     }
     match(SEMI);
+    return t;
+}
+
+TreeNode *fun_declaration(void) {
+    TreeNode *t = newStmtNode(FunDeclK);
+    match(LPAREN);
+    t->child[0] = params();
+    match(RPAREN);
+    t->child[1] = compound_stmt();
     return t;
 }
 
@@ -354,11 +307,66 @@ TreeNode *expression_stmt(void) {
     return t;
 }
 
+TreeNode *conditional_expression(void) {
+    TreeNode *t = NULL;
+    
+    if (token == ID) {
+        char *identifier = copyString(tokenString);
+        match(ID);
+        
+        /* Se encontrar ASSIGN dentro de condição, é ERRO */
+        if (token == ASSIGN) {
+            fprintf(listing, "\nERRO SINTATICO: atribuicao '=' nao permitida em condicao, use '==' para comparacao - LINHA: %d\n", lineno);
+            Error = TRUE;
+            /* Consome a atribuição para continuar análise */
+            match(ASSIGN);
+            expression();
+            return NULL;
+        }
+        
+        /* Acesso a array */
+        if (token == LBRACKET) {
+            TreeNode *arr = newExpNode(ArrIdK);
+            arr->attr.name = identifier;
+            match(LBRACKET);
+            arr->child[0] = expression();
+            match(RBRACKET);
+            
+            /* Se vier ASSIGN após array, também é erro */
+            if (token == ASSIGN) {
+                fprintf(listing, "\nERRO SINTATICO: atribuicao '=' nao permitida em condicao, use '==' para comparacao - LINHA: %d\n", lineno);
+                Error = TRUE;
+                match(ASSIGN);
+                expression();
+                return NULL;
+            }
+            
+            t = simple_expression(arr);
+        }
+        /* Chamada de função */
+        else if (token == LPAREN) {
+            t = call(identifier);
+            t = simple_expression(t);
+        }
+        /* Identificador simples */
+        else {
+            TreeNode *id = newExpNode(IdK);
+            id->attr.name = identifier;
+            t = simple_expression(id);
+        }
+    } else {
+        t = simple_expression(NULL);
+    }
+    
+    return t;
+}
+
+
 TreeNode *selection_stmt(void) {
     TreeNode *t = newStmtNode(IfK);
     match(IF);
     match(LPAREN);
-    t->child[0] = expression();
+    t->child[0] = conditional_expression();  /* <-- MUDANÇA AQUI */
     match(RPAREN);
     t->child[1] = statement();
     if (token == ELSE) {
@@ -372,7 +380,7 @@ TreeNode *iteration_stmt(void) {
     TreeNode *t = newStmtNode(WhileK);
     match(WHILE);
     match(LPAREN);
-    t->child[0] = expression();
+    t->child[0] = conditional_expression();  /* <-- MUDANÇA AQUI */
     match(RPAREN);
     t->child[1] = statement();
     return t;
@@ -398,7 +406,7 @@ TreeNode *expression(void) {
         if (strcmp(tokenString, "input") == 0 || strcmp(tokenString, "output") == 0) {
             match(ID);
             if (token != LPAREN) {
-                fprintf(listing, "\nERRO SINTATICO: funcao '%s' requer passagem de paramentros por meio de parenteses '()' - LINHA: %d\n", 
+                fprintf(listing, "\nERRO SINTATICO: funcao '%s' requer parenteses '()' - LINHA: %d\n", 
                         identifier, lineno);
                 Error = TRUE;
                 /* Se vier ASSIGN, é tentativa de atribuição a função */
