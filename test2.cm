@@ -1,4 +1,4 @@
-/* Teste com arrays e loops */
+/*Teste com arrays e loops*/
 
 int fatorial(int n)
 {
