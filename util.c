@@ -96,17 +96,11 @@ char *copyString(char *s) {
     return t;
 }
 
-static int indentno = 0;
+
 static int nodeCounter = 0;
 
 #define INDENT indentno += 2
 #define UNINDENT indentno -= 2
-
-static void printSpaces(void) {
-    int i;
-    for (i = 0; i < indentno; i++)
-        fprintf(listing, " ");
-}
 
 /* Gera arquivo Graphviz (.dot) */
 static FILE *dotFile = NULL;
@@ -355,82 +349,4 @@ void printTreeDot(TreeNode *tree, const char *dotFilename, const char *pngFilena
     if (ret == 0) {
         fprintf(listing, "✓ Arquivo %s gerado automaticamente!\n\n", pngFilename);
     }
-}
-
-/* Impressão textual simplificada */
-void printTree(TreeNode *tree) {
-    int i;
-    INDENT;
-    while (tree != NULL) {
-        printSpaces();
-        if (tree->nodekind == StmtK) {
-            switch (tree->kind.stmt) {
-            case IfK:
-                fprintf(listing, "If\n");
-                break;
-            case WhileK:
-                fprintf(listing, "While\n");
-                break;
-            case AssignK:
-                fprintf(listing, "Assign: %s\n", tree->attr.name);
-                break;
-            case ReturnK:
-                fprintf(listing, "Return\n");
-                break;
-            case FunDeclK:
-                fprintf(listing, "Function: %s (tipo: %s)\n", 
-                        tree->attr.name,
-                        tree->type == Integer ? "int" : "void");
-                break;
-            case VarDeclK:
-                if (tree->type == IntegerArray)
-                    fprintf(listing, "Var: %s[%d] (int)\n", 
-                            tree->attr.name, tree->arraySize);
-                else
-                    fprintf(listing, "Var: %s (int)\n", tree->attr.name);
-                break;
-            case ParamK:
-                if (tree->type == IntegerArray)
-                    fprintf(listing, "Param: %s[] (int)\n", tree->attr.name);
-                else
-                    fprintf(listing, "Param: %s (%s)\n", 
-                            tree->attr.name,
-                            tree->type == Integer ? "int" : "void");
-                break;
-            case CallK:
-                fprintf(listing, "Call: %s\n", tree->attr.name);
-                break;
-            case CompoundK:
-                fprintf(listing, "Compound Statement\n");
-                break;
-            default:
-                fprintf(listing, "Stmt desconhecido\n");
-                break;
-            }
-        } else if (tree->nodekind == ExpK) {
-            switch (tree->kind.exp) {
-            case OpK:
-                fprintf(listing, "Op: ");
-                printToken(tree->attr.op, "\0");
-                break;
-            case ConstK:
-                fprintf(listing, "Const: %d\n", tree->attr.val);
-                break;
-            case IdK:
-                fprintf(listing, "Id: %s\n", tree->attr.name);
-                break;
-            case ArrIdK:
-                fprintf(listing, "Array: %s\n", tree->attr.name);
-                break;
-            default:
-                fprintf(listing, "Exp desconhecida\n");
-                break;
-            }
-        } else
-            fprintf(listing, "No desconhecido\n");
-        for (i = 0; i < MAXCHILDREN; i++)
-            printTree(tree->child[i]);
-        tree = tree->sibling;
-    }
-    UNINDENT;
 }

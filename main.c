@@ -107,13 +107,6 @@ int main(int argc, char *argv[]) {
     fprintf(listing, "========================================\n");
     fprintf(listing, "    ARVORE SINTATICA ABSTRATA (AST)\n");
     fprintf(listing, "========================================\n");
-    printTree(syntaxTree);
-    fprintf(listing, "\n");
-    
-    /* SAÍDA 3: Árvore em formato Graphviz */
-    fprintf(listing, "========================================\n");
-    fprintf(listing, "    GERACAO DE GRAFICO GRAPHVIZ\n");
-    fprintf(listing, "========================================\n");
     printTreeDot(syntaxTree, dotFilename, pngFilename);
     
     /* FASE 3: Geração de Código Intermediário */
