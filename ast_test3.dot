@@ -58,7 +58,7 @@ digraph AST {
   node25 -> node27;
   node28 [label="=", shape=ellipse, style=filled, fillcolor=lightcoral];
   node25 -> node28;
-  node29 [label="input", shape=ellipse, style=filled, fillcolor=plum];
+  node29 [label="3", shape=box, style=filled, fillcolor=white];
   node28 -> node29;
   node30 [label="=", shape=ellipse, style=filled, fillcolor=lightcoral];
   node25 -> node30;

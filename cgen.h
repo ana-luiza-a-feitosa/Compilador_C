@@ -1,11 +1,13 @@
-/*
- * Interface do Gerador de Código Intermediário para C-
- */
+/* ==========================================
+ * cgen.h - Geração de Código
+ * ========================================== */
 
 #ifndef CGEN_H
 #define CGEN_H
 
-/* Função principal para geração de código intermediário */
+#include "globals.h"
+
+/* Gera código intermediário */
 void codeGen(TreeNode *syntaxTree);
 
 #endif

@@ -1,11 +1,18 @@
 /*
- * Funções utilitárias para o compilador C-
+ * Funções utilitárias para o compilador C- (util.c)
  */
 
 #include "globals.h"
 #include "util.h"
 
-void printToken(TokenType token, const char *tokenString) {
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* IMPORTANTE: A variável global é stringToken (definida em scan.c) */
+extern char stringToken[];
+
+void printToken(TokenType token, const char *tokenStr) {
     switch (token) {
     case IF:
     case ELSE:
@@ -13,7 +20,7 @@ void printToken(TokenType token, const char *tokenString) {
     case RETURN:
     case VOID:
     case WHILE:
-        fprintf(listing, "palavra-chave: %s\n", tokenString);
+        fprintf(listing, "palavra-chave: %s\n", tokenStr);
         break;
     case ASSIGN: fprintf(listing, "=\n"); break;
     case EQ: fprintf(listing, "==\n"); break;
@@ -36,13 +43,13 @@ void printToken(TokenType token, const char *tokenString) {
     case COMMA: fprintf(listing, ",\n"); break;
     case ENDFILE: fprintf(listing, "EOF\n"); break;
     case NUM:
-        fprintf(listing, "NUM: %s\n", tokenString);
+        fprintf(listing, "NUM: %s\n", tokenStr);
         break;
     case ID:
-        fprintf(listing, "ID: %s\n", tokenString);
+        fprintf(listing, "ID: %s\n", tokenStr);
         break;
     case ERROR:
-        fprintf(listing, "ERRO LEXICO: '%s' - LINHA: %d\n", tokenString, lineno);
+        fprintf(listing, "ERRO: %s\n", tokenStr);
         break;
     default:
         fprintf(listing, "Token desconhecido: %d\n", token);
@@ -62,6 +69,7 @@ TreeNode *newStmtNode(StmtKind kind) {
         t->lineno = lineno;
         t->type = Void;
         t->arraySize = 0;
+        t->attr.name = NULL;
     }
     return t;
 }
@@ -79,6 +87,7 @@ TreeNode *newExpNode(ExpKind kind) {
         t->lineno = lineno;
         t->type = Void;
         t->arraySize = 0;
+        t->attr.name = NULL;
     }
     return t;
 }
@@ -87,8 +96,8 @@ char *copyString(char *s) {
     int n;
     char *t;
     if (s == NULL) return NULL;
-    n = strlen(s) + 1;
-    t = malloc(n);
+    n = (int)strlen(s) + 1;
+    t = (char*)malloc(n);
     if (t == NULL)
         fprintf(listing, "Erro: sem memoria\n");
     else
@@ -96,16 +105,13 @@ char *copyString(char *s) {
     return t;
 }
 
+/* ============================================================
+ *  GERAÇÃO AST EM DOT/PNG (com arestas rotuladas e sibling=next)
+ * ============================================================ */
 
 static int nodeCounter = 0;
-
-#define INDENT indentno += 2
-#define UNINDENT indentno -= 2
-
-/* Gera arquivo Graphviz (.dot) */
 static FILE *dotFile = NULL;
 
-/* Função auxiliar para obter a cor do nó baseado no tipo */
 static const char* getNodeColor(TreeNode *tree) {
     if (tree->nodekind == StmtK) {
         switch (tree->kind.stmt) {
@@ -128,7 +134,6 @@ static const char* getNodeColor(TreeNode *tree) {
     return "lightblue";
 }
 
-/* Função auxiliar para obter a forma do nó */
 static const char* getNodeShape(TreeNode *tree) {
     if (tree->nodekind == StmtK) {
         switch (tree->kind.stmt) {
@@ -147,11 +152,9 @@ static const char* getNodeShape(TreeNode *tree) {
     return "ellipse";
 }
 
-/* Função auxiliar para escapar caracteres especiais em labels */
 static void escapeLabel(char *dest, const char *src, int maxLen) {
     int i = 0, j = 0;
     while (src[i] != '\0' && j < maxLen - 1) {
-        /* Escapa caracteres especiais do Graphviz */
         if (src[i] == '"') {
             dest[j++] = '\\';
             dest[j++] = '"';
@@ -169,42 +172,41 @@ static void escapeLabel(char *dest, const char *src, int maxLen) {
     dest[j] = '\0';
 }
 
-/* Função auxiliar para obter label do nó */
 static void getNodeLabel(TreeNode *tree, char *label, int maxLen) {
     char temp[100];
-    
+
     if (tree == NULL) {
         snprintf(label, maxLen, "NULL");
         return;
     }
-    
+
     if (tree->nodekind == StmtK) {
         switch (tree->kind.stmt) {
-        case IfK: 
-            snprintf(label, maxLen, "if"); 
+        case IfK:
+            snprintf(label, maxLen, "if");
             break;
-        case WhileK: 
-            snprintf(label, maxLen, "while"); 
+        case WhileK:
+            snprintf(label, maxLen, "while");
             break;
-        case AssignK: 
-            snprintf(label, maxLen, "="); 
+        case AssignK:
+            snprintf(label, maxLen, "=");
             break;
-        case ReturnK: 
-            snprintf(label, maxLen, "return"); 
+        case ReturnK:
+            snprintf(label, maxLen, "return");
             break;
         case FunDeclK:
             if (tree->attr.name != NULL) {
-                escapeLabel(temp, tree->attr.name, sizeof(temp));
+                escapeLabel(temp, tree->attr.name, (int)sizeof(temp));
                 snprintf(label, maxLen, "%s : %s", temp,
-                        tree->type == Integer ? "int" : "void");
+                         tree->type == Integer ? "int" : "void");
             } else {
-                snprintf(label, maxLen, "func : %s", 
-                        tree->type == Integer ? "int" : "void");
+                snprintf(label, maxLen, "func : %s",
+                         tree->type == Integer ? "int" : "void");
             }
             break;
         case VarDeclK:
             if (tree->attr.name != NULL) {
-                escapeLabel(temp, tree->attr.name, sizeof(temp));
+                escapeLabel(temp, tree->attr.name, (int)sizeof(temp));
                 if (tree->type == IntegerArray)
                     snprintf(label, maxLen, "int %s[%d]", temp, tree->arraySize);
                 else
@@ -215,7 +217,7 @@ static void getNodeLabel(TreeNode *tree, char *label, int maxLen) {
             break;
         case ParamK:
             if (tree->attr.name != NULL) {
-                escapeLabel(temp, tree->attr.name, sizeof(temp));
+                escapeLabel(temp, tree->attr.name, (int)sizeof(temp));
                 if (tree->type == IntegerArray)
                     snprintf(label, maxLen, "%s[]", temp);
                 else
@@ -226,42 +228,42 @@ static void getNodeLabel(TreeNode *tree, char *label, int maxLen) {
             break;
         case CallK:
             if (tree->attr.name != NULL) {
-                escapeLabel(temp, tree->attr.name, sizeof(temp));
+                escapeLabel(temp, tree->attr.name, (int)sizeof(temp));
                 snprintf(label, maxLen, "%s", temp);
             } else {
                 snprintf(label, maxLen, "call");
             }
             break;
-        case CompoundK: 
-            snprintf(label, maxLen, "compound"); 
+        case CompoundK:
+            snprintf(label, maxLen, "compound");
             break;
-        default: 
-            snprintf(label, maxLen, "?stmt?"); 
+        default:
+            snprintf(label, maxLen, "?stmt?");
             break;
         }
     } else if (tree->nodekind == ExpK) {
         switch (tree->kind.exp) {
         case OpK:
-            switch(tree->attr.op) {
-                case PLUS: snprintf(label, maxLen, "+"); break;
-                case MINUS: snprintf(label, maxLen, "-"); break;
-                case TIMES: snprintf(label, maxLen, "*"); break;
-                case OVER: snprintf(label, maxLen, "/"); break;
-                case LT: snprintf(label, maxLen, "<"); break;
-                case LE: snprintf(label, maxLen, "<="); break;
-                case GT: snprintf(label, maxLen, ">"); break;
-                case GE: snprintf(label, maxLen, ">="); break;
-                case EQ: snprintf(label, maxLen, "=="); break;
-                case NE: snprintf(label, maxLen, "!="); break;
-                default: snprintf(label, maxLen, "?op?"); break;
+            switch (tree->attr.op) {
+            case PLUS:  snprintf(label, maxLen, "+");  break;
+            case MINUS: snprintf(label, maxLen, "-");  break;
+            case TIMES: snprintf(label, maxLen, "*");  break;
+            case OVER:  snprintf(label, maxLen, "/");  break;
+            case LT:    snprintf(label, maxLen, "<");  break;
+            case LE:    snprintf(label, maxLen, "<="); break;
+            case GT:    snprintf(label, maxLen, ">");  break;
+            case GE:    snprintf(label, maxLen, ">="); break;
+            case EQ:    snprintf(label, maxLen, "=="); break;
+            case NE:    snprintf(label, maxLen, "!="); break;
+            default:    snprintf(label, maxLen, "?op?"); break;
             }
             break;
-        case ConstK: 
-            snprintf(label, maxLen, "%d", tree->attr.val); 
+        case ConstK:
+            snprintf(label, maxLen, "%d", tree->attr.val);
             break;
         case IdK:
             if (tree->attr.name != NULL) {
-                escapeLabel(temp, tree->attr.name, sizeof(temp));
+                escapeLabel(temp, tree->attr.name, (int)sizeof(temp));
                 snprintf(label, maxLen, "%s", temp);
             } else {
                 snprintf(label, maxLen, "id");
@@ -269,14 +271,14 @@ static void getNodeLabel(TreeNode *tree, char *label, int maxLen) {
             break;
         case ArrIdK:
             if (tree->attr.name != NULL) {
-                escapeLabel(temp, tree->attr.name, sizeof(temp));
+                escapeLabel(temp, tree->attr.name, (int)sizeof(temp));
                 snprintf(label, maxLen, "%s[]", temp);
             } else {
                 snprintf(label, maxLen, "arr");
             }
             break;
-        default: 
-            snprintf(label, maxLen, "?exp?"); 
+        default:
+            snprintf(label, maxLen, "?exp?");
             break;
         }
     } else {
@@ -284,69 +286,132 @@ static void getNodeLabel(TreeNode *tree, char *label, int maxLen) {
     }
 }
 
-/* Função recursiva para imprimir nós - CORRIGIDA */
-static void printDotNode(TreeNode *tree, int parentId) {
-    if (tree == NULL) return;
-    
-    int myId = nodeCounter++;
-    char label[100];
-    
-    getNodeLabel(tree, label, sizeof(label));
-    
-    /* Cria o nó com estilo */
-    fprintf(dotFile, "  node%d [label=\"%s\", shape=%s, style=filled, fillcolor=%s];\n", 
-            myId, label, getNodeShape(tree), getNodeColor(tree));
-    
-    /* Conecta ao pai se houver */
-    if (parentId >= 0) {
-        fprintf(dotFile, "  node%d -> node%d;\n", parentId, myId);
-    }
-    
-    /* IMPORTANTE: Processa APENAS os filhos, NÃO os irmãos aqui */
-    int i;
-    for (i = 0; i < MAXCHILDREN; i++) {
-        if (tree->child[i] != NULL) {
-            printDotNode(tree->child[i], myId);
+/* Rótulos das arestas para facilitar visualizar where is what */
+static const char* childEdgeLabel(TreeNode *parent, int idx) {
+    if (!parent) return "";
+
+    if (parent->nodekind == StmtK) {
+        switch (parent->kind.stmt) {
+        case IfK:
+            if (idx == 0) return "cond";
+            if (idx == 1) return "then";
+            if (idx == 2) return "else";
+            break;
+        case WhileK:
+            if (idx == 0) return "cond";
+            if (idx == 1) return "body";
+            break;
+        case AssignK:
+            if (idx == 0) return "lhs";
+            if (idx == 1) return "rhs";
+            break;
+        case ReturnK:
+            if (idx == 0) return "expr";
+            break;
+        case CompoundK:
+            if (idx == 0) return "decls";
+            if (idx == 1) return "stmts";
+            break;
+        case CallK:
+            if (idx == 0) return "args";
+            break;
+        default:
+            break;
+        }
+    } else if (parent->nodekind == ExpK) {
+        if (parent->kind.exp == OpK) {
+            if (idx == 0) return "left";
+            if (idx == 1) return "right";
+        } else if (parent->kind.exp == ArrIdK) {
+            if (idx == 0) return "index";
         }
     }
-    
-    /* CRÍTICO: Processa irmãos com o MESMO pai, não como filhos deste nó */
-    if (tree->sibling != NULL) {
-        printDotNode(tree->sibling, parentId);
-    }
+
+    return "";
 }
 
-/* Função para gerar arquivo .dot */
+static int printDotNode(TreeNode *tree) {
+    if (tree == NULL) return -1;
+
+    int myId = nodeCounter++;
+    char label[100];
+
+    getNodeLabel(tree, label, (int)sizeof(label));
+
+    fprintf(dotFile,
+        "  node%d [label=\"%s\", shape=%s, style=filled, fillcolor=%s];\n",
+        myId, label, getNodeShape(tree), getNodeColor(tree));
+
+    for (int i = 0; i < MAXCHILDREN; i++) {
+        if (tree->child[i] != NULL) {
+            int childId = printDotNode(tree->child[i]);
+            const char *elab = childEdgeLabel(tree, i);
+
+            if (elab[0] != '\0') {
+                fprintf(dotFile, "  node%d -> node%d [label=\"%s\"];\n", myId, childId, elab);
+            } else {
+                fprintf(dotFile, "  node%d -> node%d;\n", myId, childId);
+            }
+        }
+    }
+
+    /* irmãos como lista encadeada (next) */
+    if (tree->sibling != NULL) {
+        int sibId = printDotNode(tree->sibling);
+        fprintf(dotFile, "  node%d -> node%d [style=dashed, label=\"next\"];\n", myId, sibId);
+    }
+
+    return myId;
+}
+
 void printTreeDot(TreeNode *tree, const char *dotFilename, const char *pngFilename) {
-    dotFile = fopen(dotFilename, "w");
-    if (dotFile == NULL) {
-        fprintf(listing, "Erro ao criar arquivo .dot\n");
+    FILE *f = NULL;
+
+    fprintf(listing, "\n=== GERACAO DO ARQUIVO .DOT ===\n");
+    fprintf(listing, "Criando: %s\n", dotFilename);
+
+    f = fopen(dotFilename, "w");
+
+    if (f == NULL) {
+        fprintf(listing, "ERRO: Nao foi possivel criar arquivo %s\n", dotFilename);
+        fprintf(listing, "Verifique permissoes no diretorio atual\n\n");
         return;
     }
-    
+
+    fprintf(listing, "Arquivo criado com sucesso!\n");
+
+    dotFile = f;
+
     fprintf(dotFile, "digraph AST {\n");
     fprintf(dotFile, "  rankdir=TB;\n");
     fprintf(dotFile, "  node [fontname=\"Arial\", fontsize=12];\n");
     fprintf(dotFile, "  edge [color=black, penwidth=1.5];\n\n");
-    
+
     nodeCounter = 0;
-    printDotNode(tree, -1);
-    
+    printDotNode(tree);
+
     fprintf(dotFile, "}\n");
     fclose(dotFile);
-    
-    fprintf(listing, "\n=== GRAPHVIZ ===\n");
-    fprintf(listing, "Arquivo DOT gerado: %s\n", dotFilename);
-    fprintf(listing, "Para visualizar:\n");
-    fprintf(listing, "  PNG:  dot -Tpng %s -o %s\n", dotFilename, pngFilename);
-    fprintf(listing, "  PDF:  dot -Tpdf %s -o ast.pdf\n", dotFilename);
-    fprintf(listing, "  SVG:  dot -Tsvg %s -o ast.svg\n\n", dotFilename);
-    
-    /* Tenta gerar PNG automaticamente */
+
+    fprintf(listing, "\n=== ARQUIVO .DOT GERADO ===\n");
+    fprintf(listing, "Arquivo DOT: %s\n", dotFilename);
+
+    fprintf(listing, "\nGerando PNG...\n");
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "dot -Tpng %s -o %s 2>nul", dotFilename, pngFilename);
+    snprintf(cmd, (int)sizeof(cmd), "dot -Tpng \"%s\" -o \"%s\" 2>nul", dotFilename, pngFilename);
     int ret = system(cmd);
+
     if (ret == 0) {
-        fprintf(listing, "✓ Arquivo %s gerado automaticamente!\n\n", pngFilename);
+        fprintf(listing, "Arquivo PNG gerado: %s\n\n", pngFilename);
+    } else {
+        fprintf(listing, "Aviso: Nao foi possivel gerar PNG automaticamente\n");
+        fprintf(listing, "\nPara gerar manualmente, execute:\n");
+        fprintf(listing, "========================================\n");
+        fprintf(listing, "  dot -Tpng \"%s\" -o \"%s\"\n", dotFilename, pngFilename);
+        fprintf(listing, "========================================\n");
+        fprintf(listing, "\nSe o comando 'dot' nao for reconhecido:\n");
+        fprintf(listing, "  1. Instale Graphviz: https://graphviz.org/download/\n");
+        fprintf(listing, "  2. Adicione ao PATH: C:\\Program Files\\Graphviz\\bin\n");
+        fprintf(listing, "  3. Reinicie o terminal e execute o comando acima\n\n");
     }
 }

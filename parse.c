@@ -1,6 +1,11 @@
-/*
+/* 
  * Parser (Analisador Sintático) para C-
- * Com recuperação de erros em modo pânico melhorada
+ * Padroniza TODOS os erros sintáticos para:
+ * "\nERRO SINTATICO: token inesperado %s, esperado %s - LINHA: %d\n"
+ *
+ * CORRIGIDO:
+ * 1) Não aceitar "add;" (ID sozinho como statement) -> agora exige '(', '[', '=' após ID no nível de statement
+ * 2) Não sobrescrever tipo de array em declaração (int v[10];) -> mantém IntegerArray
  */
 
 #include "globals.h"
@@ -8,9 +13,13 @@
 #include "scan.h"
 #include "parse.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 static TokenType token;
 static int errorCount = 0;
-static const int MAX_ERRORS = 1;  /* Para após 1 erro */
+static const int MAX_ERRORS = 1;
 
 static TreeNode *declaration_list(void);
 static TreeNode *declaration(void);
@@ -37,84 +46,93 @@ static TreeNode *call(char *);
 static TreeNode *args(void);
 static TreeNode *arg_list(void);
 
-/* Função de erro sintático melhorada */
-static void syntaxError(char *message) {
-    fprintf(listing, "\nERRO SINTATICO: %s - LINHA: %d\n", message, lineno);
-    Error = TRUE;
-    errorCount++;
-    
-    if (errorCount >= MAX_ERRORS) {
-        fprintf(listing, "\n========================================\n");
-        fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-        fprintf(listing, "========================================\n");
-        exit(1);
+/* helper: parse de expressão quando statement começou com ID e já consumimos o ID */
+static TreeNode *expression_from_consumed_id(char *identifier);
+
+static void abortCompilation(void) {
+    fprintf(listing, "\n========================================\n");
+    fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
+    fprintf(listing, "========================================\n");
+    exit(1);
+}
+
+/* ---------------------- Padronização de mensagens ---------------------- */
+
+static const char *expectedTokenStr(TokenType t) {
+    switch (t) {
+        case SEMI:     return "';'";
+        case LPAREN:   return "'('";
+        case RPAREN:   return "')'";
+        case LBRACKET: return "'['";
+        case RBRACKET: return "']'";
+        case LBRACE:   return "'{'";
+        case RBRACE:   return "'}'";
+        case ASSIGN:   return "'='";
+        case COMMA:    return "','";
+        case IF:       return "'if'";
+        case ELSE:     return "'else'";
+        case WHILE:    return "'while'";
+        case RETURN:   return "'return'";
+        case INT:      return "'int'";
+        case VOID:     return "'void'";
+        case ID:       return "identificador";
+        case NUM:      return "numero";
+        case ENDFILE:  return "fim de arquivo";
+        default:       return "token";
     }
 }
 
-/* Match melhorado com mensagem de erro específica */
+static void foundTokenStr(char *out, size_t outSz) {
+    switch (token) {
+        case ID:
+        case NUM:
+        case ERROR:
+            snprintf(out, outSz, "'%s'", stringToken);
+            break;
+        case ENDFILE:
+            snprintf(out, outSz, "fim de arquivo");
+            break;
+        default:
+            snprintf(out, outSz, "'%s'", stringToken);
+            break;
+    }
+}
+
+static void syntaxUnexpectedExpectedStr(const char *expectedStr) {
+    if (errorCount >= MAX_ERRORS) return;
+
+    char foundStr[128];
+    foundTokenStr(foundStr, sizeof(foundStr));
+
+    fprintf(listing,
+            "\nERRO SINTATICO: token inesperado %s, esperado '%s' - LINHA: %d\n",
+            foundStr, expectedStr, lineno);
+
+    Error = TRUE;
+    errorCount++;
+
+    if (errorCount >= MAX_ERRORS) abortCompilation();
+}
+
+static void syntaxUnexpectedToken(TokenType expectedTok) {
+    syntaxUnexpectedExpectedStr(expectedTokenStr(expectedTok));
+}
+
 static void match(TokenType expected) {
     if (token == expected) {
         token = getToken();
     } else {
-        char expectedStr[50], foundStr[50];
-        
-        /* Converte token esperado para string */
-        switch(expected) {
-            case SEMI: strcpy(expectedStr, "';'"); break;
-            case LPAREN: strcpy(expectedStr, "'('"); break;
-            case RPAREN: strcpy(expectedStr, "')'"); break;
-            case LBRACKET: strcpy(expectedStr, "'['"); break;
-            case RBRACKET: strcpy(expectedStr, "']'"); break;
-            case LBRACE: strcpy(expectedStr, "'{'"); break;
-            case RBRACE: strcpy(expectedStr, "'}'"); break;
-            case ASSIGN: strcpy(expectedStr, "'='"); break;
-            case COMMA: strcpy(expectedStr, "','"); break;
-            case IF: strcpy(expectedStr, "'if'"); break;
-            case ELSE: strcpy(expectedStr, "'else'"); break;
-            case WHILE: strcpy(expectedStr, "'while'"); break;
-            case RETURN: strcpy(expectedStr, "'return'"); break;
-            case INT: strcpy(expectedStr, "'int'"); break;
-            case VOID: strcpy(expectedStr, "'void'"); break;
-            case ID: strcpy(expectedStr, "identificador"); break;
-            case NUM: strcpy(expectedStr, "numero"); break;
-            default: strcpy(expectedStr, "token desconhecido"); break;
-        }
-        
-        /* Converte token encontrado para string */
-        switch(token) {
-            case SEMI: strcpy(foundStr, "';'"); break;
-            case LPAREN: strcpy(foundStr, "'('"); break;
-            case RPAREN: strcpy(foundStr, "')'"); break;
-            case LBRACKET: strcpy(foundStr, "'['"); break;
-            case RBRACKET: strcpy(foundStr, "']'"); break;
-            case LBRACE: strcpy(foundStr, "'{'"); break;
-            case RBRACE: strcpy(foundStr, "'}'"); break;
-            case ASSIGN: strcpy(foundStr, "'='"); break;
-            case COMMA: strcpy(foundStr, "','"); break;
-            case ID: sprintf(foundStr, "'%s'", tokenString); break;
-            case NUM: sprintf(foundStr, "'%s'", tokenString); break;
-            case ENDFILE: strcpy(foundStr, "fim de arquivo"); break;
-            default: sprintf(foundStr, "'%s'", tokenString); break;
-        }
-        
-        fprintf(listing, "\nERRO SINTATICO: token inesperado %s, esperado %s - LINHA: %d\n", 
-                foundStr, expectedStr, lineno);
-        Error = TRUE;
-        errorCount++;
-        
-        if (errorCount >= MAX_ERRORS) {
-            fprintf(listing, "\n========================================\n");
-            fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-            fprintf(listing, "========================================\n");
-            exit(1);
-        }
+        syntaxUnexpectedToken(expected);
     }
 }
+
+/* ---------------------- Parser ---------------------- */
 
 TreeNode *declaration_list(void) {
     TreeNode *t = declaration();
     TreeNode *p = t;
-    while (token != ENDFILE) {
+
+    while (token != ENDFILE && errorCount < MAX_ERRORS) {
         TreeNode *q = declaration();
         if (q != NULL) {
             if (t == NULL) t = p = q;
@@ -131,50 +149,26 @@ TreeNode *declaration(void) {
     TreeNode *t = NULL;
     ExpType type;
     char *identifier;
-    
-    /* Verifica se é um tipo válido (int ou void) */
+
     if (token == INT) {
         type = Integer;
-        match(token);
+        match(INT);
     } else if (token == VOID) {
         type = Void;
-        match(token);
+        match(VOID);
     } else {
-        /* ERRO: tipo inválido ou token inesperado */
-        if (token == ID) {
-            fprintf(listing, "\nERRO SINTATICO: tipo '%s' nao e permitido, use 'int' ou 'void' - LINHA: %d\n", 
-                    tokenString, lineno);
-        } else {
-            fprintf(listing, "\nERRO SINTATICO: tipo esperado (int ou void) - LINHA: %d\n", lineno);
-        }
-        Error = TRUE;
-        errorCount++;
-        
-        if (errorCount >= MAX_ERRORS) {
-            fprintf(listing, "\n========================================\n");
-            fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-            fprintf(listing, "========================================\n");
-            exit(1);
-        }
-        
-        /* Tenta recuperar: consome tokens até encontrar ';' ou '{' ou EOF */
-        while (token != SEMI && token != LBRACE && token != ENDFILE) {
-            token = getToken();
-        }
-        if (token == SEMI) match(SEMI);
+        syntaxUnexpectedExpectedStr("tipo ('int' ou 'void')");
         return NULL;
     }
-    
-    /* Verifica se tem identificador após o tipo */
+
     if (token == ID) {
-        identifier = copyString(tokenString);
+        identifier = copyString(stringToken);
         match(ID);
     } else {
-        syntaxError("identificador esperado");
+        syntaxUnexpectedToken(ID);
         return NULL;
     }
-    
-    /* Decide se é declaração de função ou variável */
+
     if (token == LPAREN) {
         t = fun_declaration();
         if (t != NULL) {
@@ -182,35 +176,45 @@ TreeNode *declaration(void) {
             t->attr.name = identifier;
         }
     } else {
+        /* ===== CORREÇÃO: não sobrescrever IntegerArray ===== */
         t = var_declaration();
         if (t != NULL) {
-            t->type = type;
+            /* var_declaration() já define IntegerArray quando vê [NUM] */
+            if (t->type != IntegerArray) {
+                t->type = type;
+            } else {
+                /* array em C- deve ser int; se vier void, pode acusar (opcional) */
+                if (type == Void) {
+                    /* você pode manter como erro semântico depois; aqui é opcional */
+                    /* syntaxUnexpectedExpectedStr("tipo 'int' para array"); */
+                }
+            }
             t->attr.name = identifier;
         }
     }
-    
+
     return t;
 }
 
 TreeNode *var_declaration(void) {
     TreeNode *t = newStmtNode(VarDeclK);
-    
+
+    /* Por padrão, o tipo será definido em declaration().
+       Aqui só muda pra IntegerArray quando for array. */
     if (token == LBRACKET) {
         match(LBRACKET);
-        
+
         if (token == NUM) {
-            t->arraySize = atoi(tokenString);
+            t->arraySize = atoi(stringToken);
             t->type = IntegerArray;
             match(NUM);
         } else {
-            syntaxError("tamanho do array esperado em declaracao de variavel");
-            while (token != RBRACKET && token != SEMI && token != ENDFILE) {
-                token = getToken();
-            }
+            syntaxUnexpectedExpectedStr("tamanho do array (numero)");
         }
-        
+
         match(RBRACKET);
     }
+
     match(SEMI);
     return t;
 }
@@ -237,6 +241,7 @@ TreeNode *params(void) {
 TreeNode *param_list(void) {
     TreeNode *t = param();
     TreeNode *p = t;
+
     while (token == COMMA) {
         match(COMMA);
         TreeNode *q = param();
@@ -253,22 +258,29 @@ TreeNode *param_list(void) {
 
 TreeNode *param(void) {
     TreeNode *t = newStmtNode(ParamK);
-    
+
     if (token == INT) t->type = Integer;
     else if (token == VOID) t->type = Void;
-    match(token);
-    
-    if (token == ID) {
-        t->attr.name = copyString(tokenString);
-        match(ID);
+    else {
+        syntaxUnexpectedExpectedStr("tipo ('int' ou 'void')");
+        return t;
     }
-    
+    match(token);
+
+    if (token == ID) {
+        t->attr.name = copyString(stringToken);
+        match(ID);
+    } else {
+        syntaxUnexpectedToken(ID);
+        return t;
+    }
+
     if (token == LBRACKET) {
         match(LBRACKET);
         match(RBRACKET);
         t->type = IntegerArray;
     }
-    
+
     return t;
 }
 
@@ -284,27 +296,26 @@ TreeNode *compound_stmt(void) {
 TreeNode *local_declarations(void) {
     TreeNode *t = NULL;
     TreeNode *p = NULL;
-    
-    while (token == INT || token == VOID) {
+
+    while ((token == INT || token == VOID) && errorCount < MAX_ERRORS) {
         TreeNode *q = declaration();
         if (q != NULL) {
-            if (t == NULL) {
-                t = p = q;
-            } else {
+            if (t == NULL) t = p = q;
+            else {
                 p->sibling = q;
                 p = q;
             }
         }
     }
-    
+
     return t;
 }
 
 TreeNode *statement_list(void) {
     TreeNode *t = statement();
     TreeNode *p = t;
-    
-    while (token != RBRACE && token != ENDFILE) {
+
+    while (token != RBRACE && token != ENDFILE && errorCount < MAX_ERRORS) {
         TreeNode *q = statement();
         if (q != NULL) {
             if (t == NULL) t = p = q;
@@ -319,92 +330,80 @@ TreeNode *statement_list(void) {
 
 TreeNode *statement(void) {
     TreeNode *t = NULL;
+
     switch (token) {
-    case IF: t = selection_stmt(); break;
-    case WHILE: t = iteration_stmt(); break;
-    case RETURN: t = return_stmt(); break;
-    case LBRACE: t = compound_stmt(); break;
-    case ID:
-    case LPAREN:
-    case NUM:
-    case SEMI:
-        t = expression_stmt();
-        break;
-    default:
-        fprintf(listing, "\nERRO SINTATICO: comando inesperado '%s' - LINHA: %d\n", 
-                tokenString, lineno);
-        Error = TRUE;
-        errorCount++;
-        
-        if (errorCount >= MAX_ERRORS) {
-            fprintf(listing, "\n========================================\n");
-            fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-            fprintf(listing, "========================================\n");
-            exit(1);
-        }
-        token = getToken();
-        break;
+        case IF:     t = selection_stmt(); break;
+        case WHILE:  t = iteration_stmt(); break;
+        case RETURN: t = return_stmt(); break;
+        case LBRACE: t = compound_stmt(); break;
+
+        case ID:
+        case LPAREN:
+        case NUM:
+        case SEMI:
+            t = expression_stmt();
+            break;
+
+        default:
+            syntaxUnexpectedExpectedStr("inicio de comando (if/while/return/bloco/expressao)");
+            break;
     }
     return t;
 }
 
+/* ===== CORREÇÃO: não aceitar "ID ;" como statement ===== */
 TreeNode *expression_stmt(void) {
     TreeNode *t = NULL;
+
     if (token == SEMI) {
         match(SEMI);
-    } else {
-        t = expression();
-        match(SEMI);
+        return NULL;
     }
+
+    if (token == ID) {
+        char *identifier = copyString(stringToken);
+        match(ID);
+
+        /* Se veio ';' direto: exemplo "add;" => erro */
+        if (token == SEMI) {
+            syntaxUnexpectedExpectedStr("'(', '[', '='");
+            return NULL;
+        }
+
+        t = expression_from_consumed_id(identifier);
+        match(SEMI);
+        return t;
+    }
+
+    t = expression();
+    match(SEMI);
     return t;
 }
 
 TreeNode *conditional_expression(void) {
     TreeNode *t = NULL;
-    
+
     if (token == ID) {
-        char *identifier = copyString(tokenString);
+        char *identifier = copyString(stringToken);
         match(ID);
-        
+
         if (token == ASSIGN) {
-            fprintf(listing, "\nERRO SINTATICO: atribuicao '=' nao permitida em condicao, use '==' para comparacao - LINHA: %d\n", lineno);
-            Error = TRUE;
-            errorCount++;
-            
-            if (errorCount >= MAX_ERRORS) {
-                fprintf(listing, "\n========================================\n");
-                fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-                fprintf(listing, "========================================\n");
-                exit(1);
-            }
-            match(ASSIGN);
-            expression();
+            syntaxUnexpectedExpectedStr("'==','<=','>=', '>' ou '<'");
             return NULL;
         }
-        
+
         if (token == LBRACKET) {
             TreeNode *arr = newExpNode(ArrIdK);
             arr->attr.name = identifier;
             match(LBRACKET);
             arr->child[0] = expression();
             match(RBRACKET);
-            
+
             if (token == ASSIGN) {
-                fprintf(listing, "\nERRO SINTATICO: atribuicao '=' nao permitida em condicao, use '==' para comparacao - LINHA: %d\n", lineno);
-                Error = TRUE;
-                errorCount++;
-                
-                if (errorCount >= MAX_ERRORS) {
-                    fprintf(listing, "\n========================================\n");
-                    fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-                    fprintf(listing, "========================================\n");
-                    exit(1);
-                }
-                match(ASSIGN);
-                expression();
+                syntaxUnexpectedExpectedStr("'==','<=','>=', '>' ou '<'");
                 return NULL;
             }
-            
+
             t = simple_expression(arr);
         }
         else if (token == LPAREN) {
@@ -419,7 +418,7 @@ TreeNode *conditional_expression(void) {
     } else {
         t = simple_expression(NULL);
     }
-    
+
     return t;
 }
 
@@ -459,51 +458,31 @@ TreeNode *return_stmt(void) {
 
 TreeNode *expression(void) {
     TreeNode *t = NULL;
-    
+
     if (token == ID) {
-        char *identifier = copyString(tokenString);
-        
-        if (strcmp(tokenString, "input") == 0 || strcmp(tokenString, "output") == 0) {
+        char *identifier = copyString(stringToken);
+
+        /* input/output exigem '(' depois */
+        if (strcmp(stringToken, "input") == 0 || strcmp(stringToken, "output") == 0) {
             match(ID);
             if (token != LPAREN) {
-                fprintf(listing, "\nERRO SINTATICO: funcao '%s' requer parenteses '()' - LINHA: %d\n", 
-                        identifier, lineno);
-                Error = TRUE;
-                errorCount++;
-                
-                if (errorCount >= MAX_ERRORS) {
-                    fprintf(listing, "\n========================================\n");
-                    fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-                    fprintf(listing, "========================================\n");
-                    exit(1);
-                }
-                
-                if (token == ASSIGN) {
-                    fprintf(listing, "\nERRO SEMANTICO: nao e possivel atribuir valor a funcao '%s' - LINHA: %d\n", 
-                            identifier, lineno);
-                    match(ASSIGN);
-                    while (token != SEMI && token != ENDFILE) {
-                        token = getToken();
-                    }
-                }
-                t = newExpNode(IdK);
-                t->attr.name = identifier;
-                return t;
+                syntaxUnexpectedToken(LPAREN);
+                return NULL;
             }
             t = call(identifier);
             t = simple_expression(t);
             return t;
         }
-        
+
         match(ID);
-        
+
         if (token == LBRACKET) {
             TreeNode *arr = newExpNode(ArrIdK);
             arr->attr.name = identifier;
             match(LBRACKET);
             arr->child[0] = expression();
             match(RBRACKET);
-            
+
             if (token == ASSIGN) {
                 t = newStmtNode(AssignK);
                 t->attr.name = identifier;
@@ -529,14 +508,63 @@ TreeNode *expression(void) {
     } else {
         t = simple_expression(NULL);
     }
-    
+
     return t;
+}
+
+/* helper: mesma lógica do começo de expression(), mas com ID já consumido */
+static TreeNode *expression_from_consumed_id(char *identifier) {
+
+    if (strcmp(identifier, "input") == 0 || strcmp(identifier, "output") == 0) {
+        if (token != LPAREN) {
+            syntaxUnexpectedToken(LPAREN);
+            return NULL;
+        }
+        TreeNode *t = call(identifier);
+        return simple_expression(t);
+    }
+
+    if (token == LBRACKET) {
+        TreeNode *arr = newExpNode(ArrIdK);
+        arr->attr.name = identifier;
+        match(LBRACKET);
+        arr->child[0] = expression();
+        match(RBRACKET);
+
+        if (token == ASSIGN) {
+            TreeNode *t = newStmtNode(AssignK);
+            t->attr.name = identifier;
+            t->child[0] = arr;
+            match(ASSIGN);
+            t->child[1] = expression();
+            return t;
+        }
+
+        return simple_expression(arr);
+    }
+
+    if (token == ASSIGN) {
+        TreeNode *t = newStmtNode(AssignK);
+        t->attr.name = identifier;
+        match(ASSIGN);
+        t->child[1] = expression();
+        return t;
+    }
+
+    if (token == LPAREN) {
+        TreeNode *t = call(identifier);
+        return simple_expression(t);
+    }
+
+    TreeNode *id = newExpNode(IdK);
+    id->attr.name = identifier;
+    return simple_expression(id);
 }
 
 TreeNode *simple_expression(TreeNode *k) {
     TreeNode *t = additive_expression(k);
-    
-    if (token == LE || token == LT || token == GT || 
+
+    if (token == LE || token == LT || token == GT ||
         token == GE || token == EQ || token == NE) {
         TreeNode *p = newExpNode(OpK);
         p->attr.op = token;
@@ -545,13 +573,13 @@ TreeNode *simple_expression(TreeNode *k) {
         match(token);
         t->child[1] = additive_expression(NULL);
     }
-    
+
     return t;
 }
 
 TreeNode *additive_expression(TreeNode *k) {
     TreeNode *t = term(k);
-    
+
     while (token == PLUS || token == MINUS) {
         TreeNode *p = newExpNode(OpK);
         p->attr.op = token;
@@ -560,13 +588,13 @@ TreeNode *additive_expression(TreeNode *k) {
         match(token);
         p->child[1] = term(NULL);
     }
-    
+
     return t;
 }
 
 TreeNode *term(TreeNode *k) {
     TreeNode *t = (k != NULL) ? k : factor();
-    
+
     while (token == TIMES || token == OVER) {
         TreeNode *p = newExpNode(OpK);
         p->attr.op = token;
@@ -575,55 +603,35 @@ TreeNode *term(TreeNode *k) {
         match(token);
         p->child[1] = factor();
     }
-    
+
     return t;
 }
 
 TreeNode *factor(void) {
     TreeNode *t = NULL;
-    
+
     switch (token) {
-    case NUM:
-        t = newExpNode(ConstK);
-        t->attr.val = atoi(tokenString);
-        match(NUM);
-        break;
-    case ID:
-        {
-            char *identifier = copyString(tokenString);
-            
-            if (strcmp(tokenString, "input") == 0 || strcmp(tokenString, "output") == 0) {
+        case NUM:
+            t = newExpNode(ConstK);
+            t->attr.val = atoi(stringToken);
+            match(NUM);
+            break;
+
+        case ID: {
+            char *identifier = copyString(stringToken);
+
+            if (strcmp(stringToken, "input") == 0 || strcmp(stringToken, "output") == 0) {
                 match(ID);
                 if (token != LPAREN) {
-                    fprintf(listing, "\nERRO SINTATICO: funcao '%s' requer parenteses '()' - LINHA: %d\n", 
-                            identifier, lineno);
-                    Error = TRUE;
-                    errorCount++;
-                    
-                    if (errorCount >= MAX_ERRORS) {
-                        fprintf(listing, "\n========================================\n");
-                        fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-                        fprintf(listing, "========================================\n");
-                        exit(1);
-                    }
-                    
-                    if (token == ASSIGN) {
-                        fprintf(listing, "\nERRO SEMANTICO: nao e possivel atribuir valor a funcao '%s' - LINHA: %d\n", 
-                                identifier, lineno);
-                        while (token != SEMI && token != ENDFILE) {
-                            token = getToken();
-                        }
-                    }
-                    t = newExpNode(IdK);
-                    t->attr.name = identifier;
-                    return t;
+                    syntaxUnexpectedToken(LPAREN);
+                    return NULL;
                 }
                 t = call(identifier);
                 return t;
             }
-            
+
             match(ID);
-            
+
             if (token == LPAREN) {
                 t = call(identifier);
             } else if (token == LBRACKET) {
@@ -636,52 +644,31 @@ TreeNode *factor(void) {
                 t = newExpNode(IdK);
                 t->attr.name = identifier;
             }
+            break;
         }
-        break;
-    case LPAREN:
-        match(LPAREN);
-        t = expression();
-        match(RPAREN);
-        break;
-    default:
-        fprintf(listing, "\nERRO SINTATICO: token inesperado '%s' - LINHA: %d\n", 
-                tokenString, lineno);
-        Error = TRUE;
-        errorCount++;
-        
-        if (errorCount >= MAX_ERRORS) {
-            fprintf(listing, "\n========================================\n");
-            fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-            fprintf(listing, "========================================\n");
-            exit(1);
-        }
-        token = getToken();
-        break;
+
+        case LPAREN:
+            match(LPAREN);
+            t = expression();
+            match(RPAREN);
+            break;
+
+        default:
+            syntaxUnexpectedExpectedStr("fator (NUM, ID ou '(')");
+            return NULL;
     }
-    
+
     return t;
 }
 
 TreeNode *call(char *identifier) {
     TreeNode *t = newStmtNode(CallK);
     t->attr.name = identifier;
+
     match(LPAREN);
-    
-    if (strcmp(identifier, "output") == 0 && token == RPAREN) {
-        fprintf(listing, "\nERRO SEMANTICO: funcao 'output' requer um argumento - LINHA: %d\n", lineno);
-        Error = TRUE;
-        errorCount++;
-        
-        if (errorCount >= MAX_ERRORS) {
-            fprintf(listing, "\n========================================\n");
-            fprintf(listing, "COMPILACAO ABORTADA: Erros detectados na analise\n");
-            fprintf(listing, "========================================\n");
-            exit(1);
-        }
-    }
-    
     t->child[0] = args();
     match(RPAREN);
+
     return t;
 }
 
@@ -695,7 +682,7 @@ TreeNode *args(void) {
 TreeNode *arg_list(void) {
     TreeNode *t = expression();
     TreeNode *p = t;
-    
+
     while (token == COMMA) {
         match(COMMA);
         TreeNode *q = expression();
@@ -707,16 +694,20 @@ TreeNode *arg_list(void) {
             }
         }
     }
-    
+
     return t;
 }
 
 TreeNode *parse(void) {
     TreeNode *t;
-    errorCount = 0;  /* Reset contador */
+    errorCount = 0;
+
     token = getToken();
     t = declaration_list();
-    if (token != ENDFILE)
-        fprintf(listing, "\nERRO SINTATICO: fim de arquivo esperado - LINHA: %d\n", lineno);
+
+    if (token != ENDFILE && errorCount < MAX_ERRORS) {
+        syntaxUnexpectedExpectedStr("fim de arquivo");
+    }
+
     return t;
 }

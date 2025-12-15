@@ -1,5 +1,6 @@
 /* Calcula maximo e minimo */
-
+int x;
+x= 3;
 int max(int a, int b)
 {
     if (a > b)
@@ -21,7 +22,7 @@ void main(void)
     int x;
     int y;
     
-    x = input();
+    x = 3;
     y = input();
     
     output(max(x, y));

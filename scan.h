@@ -1,11 +1,15 @@
+/* ==========================================
+ * scan.h - Header do Scanner
+ * ========================================== */
+
 #ifndef SCAN_H
 #define SCAN_H
 
-#include "globals.h"  // ← DEVE TER ESTA LINHA!
+#include "globals.h"
 
 #define MAXTOKENLEN 40
 
-extern char tokenString[MAXTOKENLEN + 1];
+extern char stringToken[MAXTOKENLEN + 1];
 
 TokenType getToken(void);
 

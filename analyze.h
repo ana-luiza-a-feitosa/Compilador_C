@@ -1,14 +1,16 @@
-/*
- * Interface do Analisador Semântico para C-
- */
+/* ==========================================
+ * analyze.h - Análise Semântica
+ * ========================================== */
 
 #ifndef ANALYZE_H
 #define ANALYZE_H
 
-/* Função para construir a tabela de símbolos */
+#include "globals.h"
+
+/* Constrói a tabela de símbolos */
 void buildSymtab(TreeNode *syntaxTree);
 
-/* Função para verificação de tipos */
+/* Verifica tipos na árvore */
 void typeCheck(TreeNode *syntaxTree);
 
 #endif

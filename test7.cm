@@ -1,5 +1,5 @@
 /* Exemplo 7: Estruturas de controle */
-/*
+int x;
 int max(int a, int b) {
     int result;
     if (a > b)
@@ -9,16 +9,15 @@ int max(int a, int b) {
     return result;
 }
 
-int main(void) {
+void main(void) {
     int x;
     int y;
     int maior;
     
     x = 10;
     y = 20;
-    maior = max(x, y);
-    output = maior;
-    return 0;
+    maior = max(x,y);
+    output (maior);
 }
-*/
+
 

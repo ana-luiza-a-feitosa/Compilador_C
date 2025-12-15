@@ -1,5 +1,5 @@
 /* Exemplo 5: Função fatorial */
-/*
+
 int factorial(int n) {
     int result;
     if (n <= 1)
@@ -12,7 +12,7 @@ int factorial(int n) {
 void main(void) {
     int num;
     num = 5;
-    output = factorial(num);
+    output(factorial(num));
 
 }
-*/
+
