@@ -1,6 +1,4 @@
-/* ==========================================
- * scan.h - Header do Scanner
- * ========================================== */
+/* scan.h - Header do Scanner */
 
 #ifndef SCAN_H
 #define SCAN_H

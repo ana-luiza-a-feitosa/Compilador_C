@@ -1,6 +1,4 @@
-/*
- * Tabela de Símbolos para C-
- */
+/*Tabela de Símbolos*/
 
 #include <stdio.h>
 #include <stdlib.h>

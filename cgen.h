@@ -1,6 +1,4 @@
-/* ==========================================
- * cgen.h - Geração de Código
- * ========================================== */
+/*cgen.h - Geração de Código*/
 
 #ifndef CGEN_H
 #define CGEN_H

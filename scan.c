@@ -1,8 +1,4 @@
-/* ==========================================
- * scan.c - Scanner Corrigido (C- Louden)
- * - Corrige: ID aceita letras+dígitos
- * - Corrige: NUM seguido de letras => ERRO LEXICO (ex: 10abc)
- * ========================================== */
+/* scan.c - Scanner */
 
 #include "globals.h"
 #include "util.h"

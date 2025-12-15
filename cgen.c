@@ -1,6 +1,4 @@
-/*
- * Gerador de Código Intermediário (AST Linearizada) para C-
- */
+/*Gerador de Código Intermediário (AST Linearizada)*/
 
 #include "globals.h"
 #include "util.h"
@@ -9,31 +7,31 @@
 static int tempCounter = 0;
 static int labelCounter = 0;
 
-/* Gera novo temporário */
+/*Gera novo temporário*/
 static char *newTemp(void) {
     static char temp[20];
     sprintf(temp, "t%d", tempCounter++);
     return copyString(temp);
 }
 
-/* Gera novo label */
+/*Gera novo label*/
 static char *newLabel(void) {
     static char label[20];
     sprintf(label, "L%d", labelCounter++);
     return copyString(label);
 }
 
-/* Emite label */
+/*Emite label*/
 static void emitLabel(char *label) {
     fprintf(listing, "%s:\n", label);
 }
 
-/* Emite goto */
+/*Emite goto*/
 static void emitGoto(char *label) {
     fprintf(listing, "goto %s\n", label);
 }
 
-/* Emite salto condicional */
+/*Emite salto condicional*/
 static void emitIfFalse(char *cond, char *label) {
     fprintf(listing, "if_false %s goto %s\n", cond, label);
 }
@@ -134,10 +132,10 @@ static char *cGen(TreeNode *tree) {
                 char *labelEnd = newLabel();
                 
                 emitLabel(labelStart);
-                t1 = cGen(tree->child[0]); /* condição */
+                t1 = cGen(tree->child[0]); /*condição */
                 emitIfFalse(t1, labelEnd);
                 
-                /* Corpo do loop */
+                /* Corpo do loop*/
                 if (tree->child[1] != NULL)
                     cGen(tree->child[1]);
                 
@@ -157,7 +155,7 @@ static char *cGen(TreeNode *tree) {
             
         case CallK:
             {
-                /* Processar argumentos */
+                /*Processa argumentos*/
                 TreeNode *arg = tree->child[0];
                 while (arg != NULL) {
                     t1 = cGen(arg);
@@ -174,14 +172,14 @@ static char *cGen(TreeNode *tree) {
             {
                 fprintf(listing, "\nfunc %s:\n", tree->attr.name);
                 
-                /* Parâmetros */
+                /*Parâmetros*/
                 TreeNode *param = tree->child[0];
                 while (param != NULL) {
                     fprintf(listing, "param %s\n", param->attr.name);
                     param = param->sibling;
                 }
                 
-                /* Corpo da função */
+                /*Corpo da função */
                 if (tree->child[1] != NULL)
                     cGen(tree->child[1]);
                 
@@ -198,9 +196,9 @@ static char *cGen(TreeNode *tree) {
             break;
             
         case CompoundK:
-            if (tree->child[0] != NULL) /* declarações locais */
+            if (tree->child[0] != NULL) /*declarações locais*/
                 cGen(tree->child[0]);
-            if (tree->child[1] != NULL) /* lista de statements */
+            if (tree->child[1] != NULL) /*lista de statements*/
                 cGen(tree->child[1]);
             break;
             
@@ -213,7 +211,7 @@ static char *cGen(TreeNode *tree) {
         break;
     }
     
-    /* Processa irmãos */
+    /*Processa irmãos*/
     if (tree->sibling != NULL) {
         cGen(tree->sibling);
     }
@@ -221,7 +219,7 @@ static char *cGen(TreeNode *tree) {
     return NULL;
 }
 
-/* Gera código para árvore completa */
+/*Gera código para árvore completa */
 void codeGen(TreeNode *syntaxTree) {
     fprintf(listing, "\n>>> Codigo Intermediario (AST Linearizada) <<<\n\n");
     tempCounter = 0;

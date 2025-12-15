@@ -1,10 +1,4 @@
-/*
- * Analisador Semântico para C-
- * (corrigido: checagem de quantidade de parametros em chamadas de funcao
- *             + erro ao atribuir em funcao (ex: f = 10;)
- *             + erro ao atribuir em array sem indice (ex: v = 5;)
- *             + correção de escopo no typeCheck)
- */
+/*Analisador Semântico para C-*/
 
 #include "globals.h"
 #include "symtab.h"
@@ -73,10 +67,6 @@ static SymbolRec* findSymbolRecVisible(const char *name, const char *scope) {
 
 static int symbolExistsInScope(char *name, char *scope) {
     return findSymbolRecInScope(name, scope) != NULL;
-}
-
-static int symbolExists(char *name, char *scope) {
-    return findSymbolRecVisible(name, scope) != NULL;
 }
 
 /* ===== Helpers para contagem de parâmetros/argumentos ===== */

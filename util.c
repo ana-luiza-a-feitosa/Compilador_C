@@ -1,6 +1,4 @@
-/*
- * Funções utilitárias para o compilador C- (util.c)
- */
+/*Funções utilitárias para o compilador C- (util.c)*/
 
 #include "globals.h"
 #include "util.h"

@@ -1,6 +1,4 @@
-/* ==========================================
- * analyze.h - Análise Semântica
- * ========================================== */
+/*analyze.h - Análise Semântica*/
 
 #ifndef ANALYZE_H
 #define ANALYZE_H

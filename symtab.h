@@ -1,6 +1,4 @@
-/* ==========================================
- * symtab.h - Tabela de Símbolos
- * ========================================== */
+/*symtab.h - Tabela de Símbolos */
 
 #ifndef SYMTAB_H
 #define SYMTAB_H

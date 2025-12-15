@@ -1,7 +1,5 @@
 
-/* ==========================================
- * util.h - Funções Utilitárias
- * ========================================== */
+/*util.h - Funções Utilitárias*/
 
 #ifndef UTIL_H
 #define UTIL_H

@@ -1,12 +1,4 @@
-/* 
- * Parser (Analisador Sintático) para C-
- * Padroniza TODOS os erros sintáticos para:
- * "\nERRO SINTATICO: token inesperado %s, esperado %s - LINHA: %d\n"
- *
- * CORRIGIDO:
- * 1) Não aceitar "add;" (ID sozinho como statement) -> agora exige '(', '[', '=' após ID no nível de statement
- * 2) Não sobrescrever tipo de array em declaração (int v[10];) -> mantém IntegerArray
- */
+/* Parser (Analisador Sintático) para C-*/
 
 #include "globals.h"
 #include "util.h"
